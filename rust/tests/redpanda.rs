@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::io::Read;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use arrow::array::{AsArray, RecordBatch};
+use arrow::array::{Array, AsArray, RecordBatch};
 use arrow::datatypes::Int64Type;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -18,6 +18,7 @@ use rdkafka::config::ClientConfig;
 use rdkafka::consumer::{BaseConsumer, Consumer};
 use rdkafka::message::{Header, OwnedHeaders};
 use rdkafka::producer::{BaseProducer, BaseRecord, Producer};
+use rdkafka::{Offset, TopicPartitionList};
 
 const TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -381,4 +382,105 @@ fn empty_partition_reads_as_empty_file() {
     let fs = filesystem(&bootstrap);
 
     assert!(read_parquet(&fs, &format!("{}/1.parquet", topic.name)).is_empty());
+}
+
+#[test]
+fn windows_below_the_low_watermark_are_hidden() {
+    let Some(bootstrap) = bootstrap() else { return };
+    let topic = Topic::create(&bootstrap, 1, 25);
+    let mut offsets = TopicPartitionList::new();
+    offsets
+        .add_partition_offset(&topic.name, 0, Offset::Offset(12))
+        .unwrap();
+    let deleted =
+        futures_executor::block_on(topic.admin.delete_records(&offsets, &AdminOptions::new()))
+            .unwrap();
+    assert_eq!(
+        deleted.find_partition(&topic.name, 0).unwrap().offset(),
+        Offset::Offset(12)
+    );
+    let fs = filesystem(&bootstrap);
+    let name = &topic.name;
+
+    assert_eq!(
+        names(fs.ls(&format!("{name}/0"), true).unwrap()),
+        [
+            format!("{name}/0/10-19.arrow"),
+            format!("{name}/0/20-.arrow")
+        ]
+    );
+    assert_eq!(
+        fs.info(&format!("{name}/0/10-19.parquet")).unwrap().extra["start"],
+        "12"
+    );
+    assert!(matches!(
+        fs.info(&format!("{name}/0/0-9.parquet")),
+        Err(FsError::NotFound(_))
+    ));
+    assert_eq!(
+        column_i64(
+            &read_parquet(&fs, &format!("{name}/0/10-19.parquet")),
+            "offset"
+        ),
+        (12..20).collect::<Vec<_>>()
+    );
+    assert_eq!(
+        column_i64(
+            &read_parquet(&fs, &format!("{name}/0.parquet?start=0")),
+            "offset"
+        ),
+        (12..25).collect::<Vec<_>>()
+    );
+}
+
+/// Commit and abort markers take offsets but are never returned, and aborted messages
+/// are skipped, so the partition ends with offsets that hold no readable message. Reads
+/// meet the same gaps in compacted partitions, where Redpanda's compaction timing is too
+/// unpredictable to test against.
+#[test]
+fn transactional_partitions_skip_markers_and_aborted_messages() {
+    let Some(bootstrap) = bootstrap() else { return };
+    let topic = Topic::create(&bootstrap, 1, 0);
+    let producer: BaseProducer = ClientConfig::new()
+        .set("bootstrap.servers", &bootstrap)
+        .set("transactional.id", &topic.name)
+        .create()
+        .unwrap();
+    producer.init_transactions(TIMEOUT).unwrap();
+    for (payload, commit) in [("kept-1", true), ("dropped", false), ("kept-2", true)] {
+        producer.begin_transaction().unwrap();
+        producer
+            .send(
+                BaseRecord::<(), _>::to(&topic.name)
+                    .partition(0)
+                    .payload(payload),
+            )
+            .unwrap();
+        producer.flush(TIMEOUT).unwrap();
+        if commit {
+            producer.commit_transaction(TIMEOUT).unwrap();
+        } else {
+            producer.abort_transaction(TIMEOUT).unwrap();
+        }
+    }
+    let fs = filesystem(&bootstrap);
+
+    let batches = read_parquet(&fs, &format!("{}/0.parquet", topic.name));
+    let values = batches
+        .iter()
+        .flat_map(|batch| {
+            let values = batch
+                .column_by_name("value")
+                .unwrap()
+                .as_binary::<i32>()
+                .clone();
+            (0..values.len()).map(move |row| values.value(row).to_vec())
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(values, [b"kept-1".to_vec(), b"kept-2".to_vec()]);
+    // Marker offsets vary by broker; Redpanda also writes a fence batch first.
+    let offsets = column_i64(&batches, "offset");
+    let high = fs.backend().watermarks(&topic.name, 0).unwrap().high;
+    assert!(offsets[1] - offsets[0] > 1, "{offsets:?}");
+    assert!(offsets[1] + 1 < high, "{offsets:?} high={high}");
 }
