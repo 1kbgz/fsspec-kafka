@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 import fsspec
 import pandas as pd
 import pyarrow as pa
+import pyarrow.csv
 import pyarrow.ipc
 import pyarrow.parquet
 import pytest
@@ -31,6 +32,32 @@ def topic(options):
         fs.pipe_file(f"kafka://{name}/records/{key}", key.encode())
     yield name
     fs.rmdir(name)
+
+
+@pytest.fixture
+def empty_topic(options):
+    name = f"fsspec-kafka-py-{uuid.uuid4().hex}"
+    fs = fsspec.filesystem("kafka", **options, allow_admin=True, partitions=2, skip_instance_cache=True)
+    fs.mkdir(name)
+    yield name
+    fs.rmdir(name)
+
+
+ROWS = pa.table({"user": ["a", "b", "c"], "id": [1, 2, 3], "name": ["x", None, "z\nz"]})
+
+
+def _encode(table, format):
+    sink = pa.BufferOutputStream()
+    if format == "arrow":
+        with pyarrow.ipc.new_stream(sink, table.schema) as writer:
+            writer.write_table(table)
+    elif format == "parquet":
+        pyarrow.parquet.write_table(table, sink)
+    elif format == "csv":
+        pyarrow.csv.write_csv(table, sink)
+    else:
+        return table.to_pandas().to_json(orient="records", lines=True).encode()
+    return sink.getvalue().to_pybytes()
 
 
 def test_lists_topics_partitions_and_windows(options, topic):
@@ -81,6 +108,36 @@ def test_reads_json_values(options, topic):
 
     with fsspec.open(f"kafka://{topic}/0.arrow", **options, value_format="json", value_schema=schema) as file, pytest.raises(OSError, match="JSON"):
         file.read()
+
+
+@pytest.mark.parametrize("format", ["arrow", "parquet", "csv", "jsonl"])
+def test_appended_files_read_back(options, empty_topic, format):
+    schema = pa.schema([("id", pa.int64()), ("name", pa.string())])
+    fs = fsspec.filesystem(
+        "kafka", **options, value_format="json", value_schema=schema, flatten_value=True, key_column="user", skip_instance_cache=True
+    )
+    with fs.open(f"{empty_topic}/1.{format}", "ab") as file:
+        file.write(_encode(ROWS, format))
+    with fs.open(f"{empty_topic}.arrow") as file:
+        table = pyarrow.ipc.open_stream(file).read_all()
+    assert table.column("partition").to_pylist() == [1, 1, 1]
+    assert table.column("key").to_pylist() == [b"a", b"b", b"c"]
+    assert table.select(["id", "name"]) == ROWS.select(["id", "name"])
+
+
+def test_appends_binary_values(options, empty_topic):
+    fs = fsspec.filesystem("kafka", **options, key_column="key", partition_column="partition", skip_instance_cache=True)
+    rows = pa.table({"partition": [0, 1], "key": [b"k0", b"k1"], "value": [b"v0", None]})
+    with fs.open(f"kafka://{empty_topic}.parquet", "ab") as file:
+        file.write(_encode(rows, "parquet"))
+    table = pd.read_parquet(f"kafka://{empty_topic}.parquet", storage_options=options)
+    assert table[["partition", "key", "value"]].to_dict("list") == {"partition": [0, 1], "key": [b"k0", b"k1"], "value": [b"v0", None]}
+
+    with pytest.raises(NotImplementedError, match="append-only"):
+        fs.open(f"{empty_topic}.parquet", "wb")
+    with pytest.raises(ValueError, match="exactly one value column"), fs.open(f"{empty_topic}.arrow", "ab") as file:
+        file.write(_encode(rows.append_column("other", pa.array([1, 2])), "arrow"))
+        file.close()
 
 
 def test_records_through_open_and_get_mapper(options, topic):

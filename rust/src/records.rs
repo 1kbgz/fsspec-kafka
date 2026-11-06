@@ -1,10 +1,8 @@
 use std::collections::{BTreeMap, HashMap};
-use std::io::{self, Read, Seek, SeekFrom, Write};
-use std::sync::Arc;
 
-use fsspec_rs::{FileInfo, FsError, FsFile, FsResult};
+use fsspec_rs::{FileInfo, FsError, FsResult};
 
-use crate::backend::{KafkaBackend, NewMessage, PartitionRange};
+use crate::backend::{KafkaBackend, PartitionRange};
 use crate::path::KafkaPath;
 
 /// Topic configuration applied by `mkdir("topic/records")` over `KafkaFsOptions::topic_config`.
@@ -199,111 +197,16 @@ pub fn fetch<B: KafkaBackend>(
     Ok(None)
 }
 
-/// Buffers a record value and produces it as one message on commit. Dropping the file
-/// without `commit` or `discard` commits and ignores errors, so callers that need to know
-/// whether the write was acknowledged must commit explicitly.
-pub struct RecordWriter<B: KafkaBackend> {
-    backend: Arc<B>,
-    topic: String,
-    key: String,
-    buffer: Vec<u8>,
-    done: bool,
-}
-
-impl<B: KafkaBackend> RecordWriter<B> {
-    pub fn new(backend: Arc<B>, topic: String, key: String) -> Self {
-        Self {
-            backend,
-            topic,
-            key,
-            buffer: Vec::new(),
-            done: false,
-        }
-    }
-}
-
-impl<B: KafkaBackend> Write for RecordWriter<B> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.buffer.extend_from_slice(buf);
-        Ok(buf.len())
-    }
-
-    /// Nothing is produced until commit, so a partial value is never readable.
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
-impl<B: KafkaBackend> Read for RecordWriter<B> {
-    fn read(&mut self, _buf: &mut [u8]) -> io::Result<usize> {
-        Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            "file is write-only",
-        ))
-    }
-}
-
-impl<B: KafkaBackend> Seek for RecordWriter<B> {
-    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        match pos {
-            SeekFrom::Current(0) | SeekFrom::End(0) => Ok(self.buffer.len() as u64),
-            _ => Err(io::Error::new(
-                io::ErrorKind::Unsupported,
-                "record writes cannot seek",
-            )),
-        }
-    }
-}
-
-impl<B: KafkaBackend> FsFile for RecordWriter<B> {
-    fn info(&self) -> FsResult<FileInfo> {
-        Ok(FileInfo::file(
-            records_path(&self.topic, &self.key),
-            self.buffer.len() as u64,
-        ))
-    }
-
-    fn size(&self) -> FsResult<Option<u64>> {
-        Ok(Some(self.buffer.len() as u64))
-    }
-
-    fn commit(&mut self) -> FsResult<()> {
-        if self.done {
-            return Ok(());
-        }
-        self.done = true;
-        self.backend.produce(
-            &self.topic,
-            vec![NewMessage {
-                key: Some(self.key.clone().into_bytes()),
-                value: Some(std::mem::take(&mut self.buffer)),
-            }],
-        )?;
-        Ok(())
-    }
-
-    fn discard(&mut self) -> FsResult<()> {
-        self.done = true;
-        self.buffer.clear();
-        Ok(())
-    }
-}
-
-impl<B: KafkaBackend> Drop for RecordWriter<B> {
-    fn drop(&mut self) {
-        let _ = self.commit();
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
+    use std::sync::{Arc, Mutex};
 
     use fsspec_rs::{FileSystem, OpenMode};
 
     use super::*;
     use crate::backend::{
-        LiveMessages, Message, MessageOffset, MessageStream, PartitionInfo, TopicInfo, Watermarks,
+        LiveMessages, Message, MessageOffset, MessageStream, NewMessage, PartitionInfo, TopicInfo,
+        Watermarks,
     };
     use crate::fs::{KafkaFs, KafkaFsOptions};
 

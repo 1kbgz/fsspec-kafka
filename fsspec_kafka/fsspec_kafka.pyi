@@ -36,6 +36,10 @@ class RustKafkaFs:
         value_format: str = ...,
         value_schema: bytes | None = ...,
         flatten_value: bool = ...,
+        key_column: str | None = ...,
+        partition_column: str | None = ...,
+        timestamp_column: str | None = ...,
+        headers_column: str | None = ...,
     ) -> None: ...
     def ls(self, path: str) -> list[dict]: ...
     def info(self, path: str) -> dict: ...

@@ -36,12 +36,24 @@ Storage options are librdkafka properties, except for these:
 | `value_format`              | `"binary"` | `"json"` decodes values with `value_schema`               |
 | `value_schema`              | `None`     | `pyarrow.Schema` of JSON values                           |
 | `flatten_value`             | `False`    | Puts JSON fields beside the message columns               |
+| `key_column`                | `None`     | Input column for message keys when appending              |
+| `partition_column`          | `None`     | Input column for partitions when appending                |
+| `timestamp_column`          | `None`     | Input column for timestamps when appending                |
+| `headers_column`            | `None`     | Input column for headers, a map, when appending           |
 
 Messages are read with `topic`, `partition`, `offset`, `timestamp`, `key`, `headers`, and `value` columns. With `value_format="json"`, `value` is a struct of the `value_schema` fields, which are null for tombstones. `flatten_value=True` puts the fields beside the other columns instead, which CSV needs because it cannot hold structs:
 
 ```python
 schema = pa.schema([("id", pa.int64()), ("status", pa.string())])
 frame = pd.read_csv("kafka://orders.csv", storage_options={**options, "value_format": "json", "value_schema": schema, "flatten_value": True})
+```
+
+Topics are append-only. Opening `topic.format` or `topic/partition.format` with mode `"ab"` produces one message per row of the file when it closes. The mapped columns set the message fields, and the remaining columns are the value: a JSON object with `value_format="json"`, otherwise a single binary or string column. CSV and JSON Lines columns are typed from `value_schema`.
+
+```python
+fs = fsspec.filesystem("kafka", **options, value_format="json", value_schema=schema, key_column="order_id")
+with fs.open("orders.parquet", "ab") as file:
+    frame.to_parquet(file)
 ```
 
 Options can also come from fsspec configuration, for example `FSSPEC_KAFKA='{"bootstrap.servers": "localhost:9092"}'`.

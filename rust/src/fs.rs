@@ -12,8 +12,9 @@ use crate::backend::{
 };
 use crate::path::{KafkaPath, MetaFile, Window};
 use crate::read::{message_schema, EncodedFile, MessageBatches, ValueFormat};
-use crate::records::{fetch, record_file, RecordIndex, RecordWriter, RECORDS_TOPIC_CONFIG};
+use crate::records::{fetch, record_file, RecordIndex, RECORDS_TOPIC_CONFIG};
 use crate::stream::{MessageTail, StreamStart};
+use crate::write::{file_messages, MessageColumns, MessageWriter};
 
 const PROTOCOLS: &[&str] = &["kafka"];
 
@@ -34,8 +35,10 @@ pub struct KafkaFsOptions {
     pub replication: i32,
     /// Topic configuration for topics created by `mkdir`, such as `retention.ms`.
     pub topic_config: BTreeMap<String, String>,
-    /// How message values are read.
+    /// How message values are read and written.
     pub value_format: ValueFormat,
+    /// Columns of appended files that set message keys, partitions, timestamps, and headers.
+    pub columns: MessageColumns,
 }
 
 impl Default for KafkaFsOptions {
@@ -49,6 +52,7 @@ impl Default for KafkaFsOptions {
             replication: -1,
             topic_config: BTreeMap::new(),
             value_format: ValueFormat::Binary,
+            columns: MessageColumns::default(),
         }
     }
 }
@@ -363,6 +367,40 @@ impl<B: KafkaBackend> KafkaFs<B> {
         Ok(Box::new(EncodedFile::new(batches, format, info)?))
     }
 
+    /// Appends a file to `topic.format` or `topic/partition.format` as one message per row.
+    fn append(&self, path: KafkaPath) -> FsResult<Box<dyn FsFile>> {
+        let name = path.to_path();
+        let (topic, partition, format) = match path {
+            KafkaPath::TopicSnapshot { topic, format } => {
+                self.backend.topic(&topic)?;
+                (topic, None, format)
+            }
+            KafkaPath::PartitionRead {
+                topic,
+                partition,
+                format,
+                start: None,
+                limit: None,
+            } => {
+                self.partition(&topic, partition)?;
+                (topic, Some(partition), format)
+            }
+            _ => {
+                return Err(FsError::NotSupported(format!(
+                    "only topic.format and topic/partition.format can be appended to: {name}"
+                )))
+            }
+        };
+        let value = self.options.value_format.clone();
+        let columns = self.options.columns.clone();
+        Ok(Box::new(MessageWriter::new(
+            self.backend.clone(),
+            topic,
+            name,
+            Box::new(move |data| file_messages(&data, format, &value, &columns, partition)),
+        )))
+    }
+
     fn ls_kafka(&self, path: KafkaPath) -> FsResult<Vec<FileInfo>> {
         match path {
             KafkaPath::Root => Ok(self.backend.list_topics()?.iter().map(topic_dir).collect()),
@@ -510,10 +548,18 @@ impl<B: KafkaBackend> FileSystem for KafkaFs<B> {
                 OpenMode::Write => {
                     // Check the topic is compacted before accepting the value.
                     self.with_records(topic, false, |_| Ok(()))?;
-                    Ok(Box::new(RecordWriter::new(
+                    let key = key.clone().into_bytes();
+                    Ok(Box::new(MessageWriter::new(
                         self.backend.clone(),
                         topic.clone(),
-                        key.clone(),
+                        parsed.to_path(),
+                        Box::new(move |value| {
+                            Ok(vec![NewMessage {
+                                key: Some(key),
+                                value: Some(value),
+                                ..NewMessage::default()
+                            }])
+                        }),
                     )))
                 }
                 _ => Err(FsError::NotSupported(format!(
@@ -521,10 +567,14 @@ impl<B: KafkaBackend> FileSystem for KafkaFs<B> {
                 ))),
             };
         }
-        if mode != OpenMode::Read {
-            return Err(FsError::NotSupported(format!(
-                "writing to Kafka is not supported yet: {path}"
-            )));
+        match mode {
+            OpenMode::Read => {}
+            OpenMode::Append => return self.append(parsed),
+            _ => {
+                return Err(FsError::NotSupported(format!(
+                    "Kafka topics are append-only; open with \"ab\" to append: {path}"
+                )))
+            }
         }
         match parsed {
             KafkaPath::Meta(topic, file) => {
@@ -565,7 +615,7 @@ impl<B: KafkaBackend> FileSystem for KafkaFs<B> {
                     &topic,
                     vec![NewMessage {
                         key: Some(key.into_bytes()),
-                        value: None,
+                        ..NewMessage::default()
                     }],
                 )?;
                 Ok(())
@@ -742,6 +792,7 @@ mod tests {
         marks: HashMap<(String, i32), Watermarks>,
         created: Mutex<Vec<CreatedTopic>>,
         deleted: Mutex<Vec<String>>,
+        produced: Mutex<Vec<NewMessage>>,
     }
 
     impl MockBackend {
@@ -772,6 +823,7 @@ mod tests {
                 marks,
                 created: Mutex::default(),
                 deleted: Mutex::default(),
+                produced: Mutex::default(),
             }
         }
     }
@@ -812,8 +864,16 @@ mod tests {
             )]))
         }
 
-        fn produce(&self, topic: &str, _: Vec<NewMessage>) -> FsResult<Vec<MessageOffset>> {
-            Err(FsError::NotSupported(topic.into()))
+        fn produce(&self, _topic: &str, messages: Vec<NewMessage>) -> FsResult<Vec<MessageOffset>> {
+            let offsets = messages
+                .iter()
+                .map(|message| MessageOffset {
+                    partition: message.partition.unwrap_or(0),
+                    offset: 0,
+                })
+                .collect();
+            self.produced.lock().unwrap().extend(messages);
+            Ok(offsets)
         }
 
         fn create_topic(
@@ -1307,6 +1367,62 @@ mod tests {
             Err(FsError::InvalidArgument(_))
         ));
         assert!(KafkaFs::new(MockBackend::new(), options("id")).is_ok());
+    }
+
+    #[test]
+    fn appends_files_as_messages() {
+        let fs = KafkaFs::new(
+            MockBackend::new(),
+            KafkaFsOptions {
+                columns: MessageColumns {
+                    key: Some("id".into()),
+                    ..MessageColumns::default()
+                },
+                ..KafkaFsOptions::default()
+            },
+        )
+        .unwrap();
+        let append = |path, data: &[u8]| {
+            let mut file = fs.open(path, OpenMode::Append, None).unwrap();
+            file.write_all(data).unwrap();
+            file.commit().unwrap();
+        };
+        append("orders.csv", b"value,id\nx,a\ny,b\n");
+        append(
+            "kafka://orders/1.jsonl",
+            b"{\"id\": \"c\", \"value\": \"z\"}\n",
+        );
+        let message = |partition, key: &str, value: &str| NewMessage {
+            partition,
+            key: Some(key.into()),
+            value: Some(value.into()),
+            ..NewMessage::default()
+        };
+        assert_eq!(
+            *fs.backend().produced.lock().unwrap(),
+            [
+                message(None, "a", "x"),
+                message(None, "b", "y"),
+                message(Some(1), "c", "z"),
+            ]
+        );
+
+        for path in [
+            "orders/0/0-9.arrow",
+            "orders/0.arrow?start=3",
+            "orders/_meta/config.json",
+        ] {
+            assert!(matches!(
+                fs.open(path, OpenMode::Append, None),
+                Err(FsError::NotSupported(_))
+            ));
+        }
+        for path in ["missing.csv", "orders/5.csv"] {
+            assert!(matches!(
+                fs.open(path, OpenMode::Append, None),
+                Err(FsError::NotFound(_))
+            ));
+        }
     }
 
     #[test]

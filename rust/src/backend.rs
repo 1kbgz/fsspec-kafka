@@ -10,7 +10,7 @@ use rdkafka::client::DefaultClientContext;
 use rdkafka::config::ClientConfig;
 use rdkafka::consumer::{BaseConsumer, Consumer};
 use rdkafka::error::KafkaError;
-use rdkafka::message::{Headers, Message as _};
+use rdkafka::message::{Header, Headers, Message as _, OwnedHeaders};
 use rdkafka::producer::{DeliveryFuture, FutureProducer, FutureRecord};
 use rdkafka::topic_partition_list::{Offset, TopicPartitionList};
 use rdkafka::types::{RDKafkaErrorCode, RDKafkaRespErr};
@@ -56,10 +56,14 @@ pub struct Message {
     pub value: Option<Vec<u8>>,
 }
 
-/// A message to produce. A `None` value is a tombstone.
+/// A message to produce. A `None` value is a tombstone. Without a partition, librdkafka's
+/// partitioner chooses one; without a timestamp, the producer's clock is used.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct NewMessage {
+    pub partition: Option<i32>,
+    pub timestamp_ms: Option<i64>,
     pub key: Option<Vec<u8>>,
+    pub headers: Vec<(String, Option<Vec<u8>>)>,
     pub value: Option<Vec<u8>>,
 }
 
@@ -243,6 +247,24 @@ impl KafkaBackend for RdKafkaBackend {
         let mut offsets = Vec::with_capacity(messages.len());
         for message in &messages {
             let mut record = FutureRecord::<[u8], [u8]>::to(topic);
+            if let Some(partition) = message.partition {
+                record = record.partition(partition);
+            }
+            if let Some(timestamp_ms) = message.timestamp_ms {
+                record = record.timestamp(timestamp_ms);
+            }
+            if !message.headers.is_empty() {
+                let headers = message.headers.iter().fold(
+                    OwnedHeaders::new_with_capacity(message.headers.len()),
+                    |headers, (key, value)| {
+                        headers.insert(Header {
+                            key,
+                            value: value.as_deref(),
+                        })
+                    },
+                );
+                record = record.headers(headers);
+            }
             if let Some(key) = &message.key {
                 record = record.key(key.as_slice());
             }

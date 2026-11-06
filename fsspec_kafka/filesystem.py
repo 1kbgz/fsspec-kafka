@@ -28,6 +28,12 @@ class KafkaFileSystem(AbstractFileSystem):
     With ``value_format="json"``, values are JSON objects decoded with ``value_schema``, a
     ``pyarrow.Schema``. Decoded fields are nested in a ``value`` struct column, or placed
     beside the message columns with ``flatten_value=True``.
+
+    Opening ``topic.format`` or ``topic/partition.format`` with mode ``"ab"`` appends a file
+    as one message per row. ``key_column``, ``partition_column``, ``timestamp_column``, and
+    ``headers_column`` name the input columns that set those message fields. The remaining
+    columns are the value: one JSON object per row with ``value_format="json"``, otherwise a
+    single binary or string column.
     """
 
     protocol = ("kafka",)
@@ -46,6 +52,10 @@ class KafkaFileSystem(AbstractFileSystem):
         value_format="binary",
         value_schema=None,
         flatten_value=False,
+        key_column=None,
+        partition_column=None,
+        timestamp_column=None,
+        headers_column=None,
         **storage_options,
     ):
         super().__init__(**{key: storage_options.pop(key) for key in _FSSPEC_OPTIONS & storage_options.keys()})
@@ -62,6 +72,10 @@ class KafkaFileSystem(AbstractFileSystem):
             value_format=value_format,
             value_schema=None if value_schema is None else _schema_bytes(value_schema),
             flatten_value=flatten_value,
+            key_column=key_column,
+            partition_column=partition_column,
+            timestamp_column=timestamp_column,
+            headers_column=headers_column,
         )
 
     def ls(self, path, detail=True, **kwargs):

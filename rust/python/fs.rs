@@ -7,7 +7,7 @@ use arrow::ipc::reader::StreamReader;
 use arrow::ipc::writer::StreamWriter;
 use fsspec_data::DataFormat;
 use fsspec_kafka::{
-    KafkaFs, KafkaFsOptions, MessageTail, RdKafkaBackend, StreamStart, ValueFormat,
+    KafkaFs, KafkaFsOptions, MessageColumns, MessageTail, RdKafkaBackend, StreamStart, ValueFormat,
 };
 use fsspec_rs::{FileInfo, FileSystem, FileType, FsError, FsFile, OpenMode};
 use pyo3::exceptions::{
@@ -231,6 +231,10 @@ impl RustKafkaFs {
         value_format="binary",
         value_schema=None,
         flatten_value=false,
+        key_column=None,
+        partition_column=None,
+        timestamp_column=None,
+        headers_column=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -247,6 +251,10 @@ impl RustKafkaFs {
         value_format: &str,
         value_schema: Option<Vec<u8>>,
         flatten_value: bool,
+        key_column: Option<String>,
+        partition_column: Option<String>,
+        timestamp_column: Option<String>,
+        headers_column: Option<String>,
     ) -> PyResult<Self> {
         let value_format = match (value_format, value_schema) {
             ("binary", None) if !flatten_value => ValueFormat::Binary,
@@ -273,6 +281,12 @@ impl RustKafkaFs {
             replication,
             topic_config,
             value_format,
+            columns: MessageColumns {
+                key: key_column,
+                partition: partition_column,
+                timestamp: timestamp_column,
+                headers: headers_column,
+            },
         };
         let timeout = Duration::try_from_secs_f64(timeout)
             .map_err(|_| PyValueError::new_err("timeout must be a non-negative number"))?;

@@ -1,18 +1,19 @@
 //! Discovery and reads against a live broker. Set `KAFKA_TEST_BOOTSTRAP` (see `ci/docker-compose.yml`).
 
 use std::collections::{BTreeMap, HashMap};
-use std::io::Read;
+use std::io::{Read, Write};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use arrow::array::{Array, AsArray, RecordBatch};
-use arrow::datatypes::Int64Type;
+use arrow::datatypes::{DataType, Field, Int32Type, Int64Type, Schema, TimestampMillisecondType};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use fsspec_data::DataFormat;
 use fsspec_kafka::{
-    KafkaBackend, KafkaFs, KafkaFsOptions, MessageOffset, MessageTail, NewMessage, RdKafkaBackend,
-    StreamStart,
+    KafkaBackend, KafkaFs, KafkaFsOptions, MessageColumns, MessageOffset, MessageTail, NewMessage,
+    RdKafkaBackend, StreamStart, ValueFormat,
 };
 use fsspec_rs::{FileSystem, FsError, OpenMode};
 use rdkafka::admin::{AdminClient, AdminOptions, NewTopic, TopicReplication};
@@ -493,6 +494,7 @@ fn new_message(key: Option<&str>, value: Option<&str>) -> NewMessage {
     NewMessage {
         key: key.map(|key| key.as_bytes().to_vec()),
         value: value.map(|value| value.as_bytes().to_vec()),
+        ..NewMessage::default()
     }
 }
 
@@ -531,6 +533,58 @@ fn produces_messages_and_tombstones_in_order() {
     assert!(values.is_null(1));
     assert!(keys.is_null(2));
     assert_eq!(values.value(2), b"2");
+}
+
+#[test]
+fn appended_rows_set_message_fields() {
+    let Some(bootstrap) = bootstrap() else { return };
+    let topic = Topic::create(&bootstrap, 2, 0);
+    let config = HashMap::from([("bootstrap.servers".to_string(), bootstrap)]);
+    let fs = KafkaFs::new(
+        RdKafkaBackend::new(&config, TIMEOUT).unwrap(),
+        KafkaFsOptions {
+            value_format: ValueFormat::Json {
+                schema: Arc::new(Schema::new(vec![Field::new("id", DataType::Int64, true)])),
+                flatten: true,
+            },
+            columns: MessageColumns {
+                key: Some("k".into()),
+                partition: Some("p".into()),
+                timestamp: Some("t".into()),
+                headers: Some("h".into()),
+            },
+            ..KafkaFsOptions::default()
+        },
+    )
+    .unwrap();
+
+    let mut file = fs
+        .open(&format!("{}.jsonl", topic.name), OpenMode::Append, None)
+        .unwrap();
+    file.write_all(
+        br#"{"k": "a", "p": 1, "t": "2026-11-06T00:00:00Z", "h": {"trace": "x"}, "id": 7}
+{"k": "b", "p": 0, "id": 8}
+"#,
+    )
+    .unwrap();
+    file.commit().unwrap();
+
+    let batch = read_parquet(&fs, &format!("{}.parquet", topic.name)).remove(0);
+    let column = |name| batch.column_by_name(name).unwrap();
+    assert_eq!(
+        column("partition").as_primitive::<Int32Type>().values(),
+        &[0, 1]
+    );
+    assert_eq!(column("id").as_primitive::<Int64Type>().values(), &[8, 7]);
+    let keys = column("key").as_binary::<i32>();
+    assert_eq!((keys.value(0), keys.value(1)), (&b"b"[..], &b"a"[..]));
+    let timestamps = column("timestamp").as_primitive::<TimestampMillisecondType>();
+    assert_eq!(timestamps.value(1), 1_793_923_200_000);
+    let headers = column("headers").as_map();
+    assert_eq!(headers.value(0).len(), 0);
+    let trace = headers.value(1);
+    assert_eq!(trace.column(0).as_string::<i32>().value(0), "trace");
+    assert_eq!(trace.column(1).as_binary::<i32>().value(0), b"x");
 }
 
 #[test]
