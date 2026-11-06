@@ -116,6 +116,46 @@ coverage: coverage-py coverage-rs  ## run all tests and collect test coverage
 # alias
 tests: test
 
+###############
+# INTEGRATION #
+###############
+# Live broker integration tests, gated on FSSPEC_KAFKA_*_BOOTSTRAP env vars.
+# Uses podman-compose by default; override with `make COMPOSE="docker compose" ...`.
+COMPOSE ?= podman-compose
+COMPOSE_FILE ?= ci/docker-compose.yml
+FSSPEC_KAFKA_BOOTSTRAP ?= 127.0.0.1:59092
+FSSPEC_KAFKA_KERBEROS_BOOTSTRAP ?= localhost:59094
+# Not exported, so plain `make test` does not trigger the gated tests.
+
+.PHONY: kafka-up kafka-wait kafka-down kafka-logs test-integration
+
+kafka-up:  ## start the Redpanda, KDC, and Kerberos Kafka fixtures
+	$(COMPOSE) -f $(COMPOSE_FILE) up -d --build
+
+kafka-wait:  ## block until both brokers accept connections
+	@echo "waiting for redpanda + kerberos kafka to become ready..."
+	@for i in $$(seq 1 60); do \
+		if $(COMPOSE) -f $(COMPOSE_FILE) exec -T redpanda rpk cluster health --exit-when-healthy >/dev/null 2>&1 \
+			&& $(COMPOSE) -f $(COMPOSE_FILE) exec -T kafka-kerberos /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka-kerberos:9092 >/dev/null 2>&1; then \
+			echo "brokers ready"; exit 0; \
+		fi; \
+		sleep 2; \
+	done; \
+	echo "timed out waiting for brokers"; $(COMPOSE) -f $(COMPOSE_FILE) ps; exit 1
+
+kafka-down:  ## stop the fixtures and remove their volumes
+	$(COMPOSE) -f $(COMPOSE_FILE) down -v
+
+kafka-logs:  ## tail the fixture logs
+	$(COMPOSE) -f $(COMPOSE_FILE) logs -f
+
+test-integration:  ## run the env-gated integration tests against running fixtures
+	FSSPEC_KAFKA_BOOTSTRAP="$(FSSPEC_KAFKA_BOOTSTRAP)" \
+	FSSPEC_KAFKA_KERBEROS_BOOTSTRAP="$(FSSPEC_KAFKA_KERBEROS_BOOTSTRAP)" \
+	KRB5_CONFIG="$(CURDIR)/ci/kerberos/krb5.conf" \
+	KRB5CCNAME="FILE:$(CURDIR)/ci/kerberos/keytabs/client.ccache" \
+	python -m pytest -v fsspec_kafka/tests/integration
+
 ###########
 # VERSION #
 ###########

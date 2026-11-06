@@ -96,7 +96,9 @@ test-command = "pytest -vvv {project}/fsspec_kafka/tests"
 test-extras = "develop"
 
 [tool.cibuildwheel.linux]
+# Vendored OpenSSL, Cyrus SASL, and krb5 builds need perl and yacc.
 before-all = """
+yum install -y perl-core perl-IPC-Cmd bison
 curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain=stable --profile=minimal -y
 rustup target add aarch64-unknown-linux-gnu
 rustup target add x86_64-unknown-linux-gnu
