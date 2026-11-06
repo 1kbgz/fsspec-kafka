@@ -1,4 +1,5 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use fsspec_rs::{FsError, FsResult};
@@ -8,8 +9,10 @@ use rdkafka::config::ClientConfig;
 use rdkafka::consumer::{BaseConsumer, Consumer};
 use rdkafka::error::KafkaError;
 use rdkafka::message::{Headers, Message as _};
+use rdkafka::producer::{DeliveryFuture, FutureProducer, FutureRecord};
 use rdkafka::topic_partition_list::{Offset, TopicPartitionList};
-use rdkafka::types::RDKafkaRespErr;
+use rdkafka::types::{RDKafkaErrorCode, RDKafkaRespErr};
+use rdkafka::util::NaiveRuntime;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PartitionInfo {
@@ -51,6 +54,20 @@ pub struct Message {
     pub value: Option<Vec<u8>>,
 }
 
+/// A message to produce. A `None` value is a tombstone.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct NewMessage {
+    pub key: Option<Vec<u8>>,
+    pub value: Option<Vec<u8>>,
+}
+
+/// Where the broker stored a produced message.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MessageOffset {
+    pub partition: i32,
+    pub offset: i64,
+}
+
 pub type MessageStream = Box<dyn Iterator<Item = FsResult<Message>> + Send>;
 
 /// Cluster operations used by `KafkaFs`.
@@ -77,6 +94,11 @@ pub trait KafkaBackend: Send + Sync {
     /// partition, whichever comes first, so offsets missing from compacted or
     /// transactional partitions do not block the read.
     fn read(&self, topic: &str, ranges: Vec<PartitionRange>) -> FsResult<MessageStream>;
+
+    /// Produces `messages` in order, partitioned by key, and returns their offsets once the
+    /// broker has acknowledged every one. Fails with `FsError::NotFound` when the topic does
+    /// not exist; topics are never created by producing.
+    fn produce(&self, topic: &str, messages: Vec<NewMessage>) -> FsResult<Vec<MessageOffset>>;
 }
 
 /// `KafkaBackend` over librdkafka. Reads never join a consumer group or commit offsets.
@@ -84,6 +106,7 @@ pub struct RdKafkaBackend {
     config: ClientConfig,
     consumer: BaseConsumer,
     admin: AdminClient<DefaultClientContext>,
+    producer: OnceLock<FutureProducer<DefaultClientContext, NaiveRuntime>>,
     timeout: Duration,
 }
 
@@ -101,6 +124,7 @@ impl RdKafkaBackend {
             consumer: client_config.create().map_err(kafka_error)?,
             admin: client_config.create().map_err(kafka_error)?,
             config: client_config,
+            producer: OnceLock::new(),
             timeout,
         })
     }
@@ -177,6 +201,42 @@ impl KafkaBackend for RdKafkaBackend {
         self.read_messages(topic, ranges)
     }
 
+    fn produce(&self, topic: &str, messages: Vec<NewMessage>) -> FsResult<Vec<MessageOffset>> {
+        self.topic(topic)?;
+        let producer = self.producer()?;
+        let mut pending = VecDeque::new();
+        let mut offsets = Vec::with_capacity(messages.len());
+        for message in &messages {
+            let mut record = FutureRecord::<[u8], [u8]>::to(topic);
+            if let Some(key) = &message.key {
+                record = record.key(key.as_slice());
+            }
+            if let Some(value) = &message.value {
+                record = record.payload(value.as_slice());
+            }
+            loop {
+                match producer.send_result(record) {
+                    Ok(delivery) => {
+                        pending.push_back(delivery);
+                        break;
+                    }
+                    // Wait for the oldest delivery to make room in the local queue.
+                    Err((KafkaError::MessageProduction(RDKafkaErrorCode::QueueFull), returned))
+                        if !pending.is_empty() =>
+                    {
+                        offsets.push(delivered(pending.pop_front().unwrap())?);
+                        record = returned;
+                    }
+                    Err((error, _)) => return Err(kafka_error(error)),
+                }
+            }
+        }
+        for delivery in pending {
+            offsets.push(delivered(delivery)?);
+        }
+        Ok(offsets)
+    }
+
     fn topic_config(&self, topic: &str) -> FsResult<BTreeMap<String, String>> {
         let options = AdminOptions::new().request_timeout(Some(self.timeout));
         let results = futures_executor::block_on(
@@ -189,9 +249,7 @@ impl KafkaBackend for RdKafkaBackend {
             .next()
             .ok_or_else(|| FsError::NotFound(topic.to_string()))?
             .map_err(|code| match code {
-                rdkafka::types::RDKafkaErrorCode::UnknownTopicOrPartition => {
-                    FsError::NotFound(topic.to_string())
-                }
+                RDKafkaErrorCode::UnknownTopicOrPartition => FsError::NotFound(topic.to_string()),
                 code => FsError::Other(format!("topic {topic} config: {code}")),
             })?;
         Ok(resource
@@ -203,6 +261,20 @@ impl KafkaBackend for RdKafkaBackend {
 }
 
 impl RdKafkaBackend {
+    fn producer(&self) -> FsResult<&FutureProducer<DefaultClientContext, NaiveRuntime>> {
+        if let Some(producer) = self.producer.get() {
+            return Ok(producer);
+        }
+        let mut config = self.config.clone();
+        let producer = config
+            .remove("enable.auto.commit")
+            .set("enable.idempotence", "true")
+            .set("acks", "all")
+            .create()
+            .map_err(kafka_error)?;
+        Ok(self.producer.get_or_init(|| producer))
+    }
+
     fn read_messages(&self, topic: &str, ranges: Vec<PartitionRange>) -> FsResult<MessageStream> {
         let ranges = ranges
             .into_iter()
@@ -328,6 +400,19 @@ fn topic_info(topic: &rdkafka::metadata::MetadataTopic) -> TopicInfo {
     TopicInfo {
         name: topic.name().to_string(),
         partitions,
+    }
+}
+
+fn delivered(delivery: DeliveryFuture) -> FsResult<MessageOffset> {
+    match futures_executor::block_on(delivery) {
+        Ok(Ok(delivery)) => Ok(MessageOffset {
+            partition: delivery.partition,
+            offset: delivery.offset,
+        }),
+        Ok(Err((error, _))) => Err(kafka_error(error)),
+        Err(_) => Err(FsError::Other(
+            "producer closed before delivery".to_string(),
+        )),
     }
 }
 

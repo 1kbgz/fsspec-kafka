@@ -1783,6 +1783,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7956f9ac12b5712e50372d9749a3102f4810a8d42481c5eae3748d36d585bcf"
 dependencies = [
  "futures-channel",
+ "futures-executor",
  "futures-util",
  "libc",
  "log",
