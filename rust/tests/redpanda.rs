@@ -1,6 +1,6 @@
 //! Discovery and reads against a live broker. Set `FSSPEC_KAFKA_BOOTSTRAP` (see `ci/docker-compose.yml`).
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io::Read;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -104,6 +104,7 @@ fn filesystem(bootstrap: &str) -> KafkaFs<RdKafkaBackend> {
             window_size: 10,
             list_format: DataFormat::Arrow,
             batch_size: 4,
+            ..KafkaFsOptions::default()
         },
     )
     .unwrap()
@@ -575,4 +576,73 @@ fn producing_to_a_missing_topic_fails_without_creating_it() {
         fs.backend().topic(name),
         Err(FsError::NotFound(_))
     ));
+}
+
+fn unique_topic_name() -> String {
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    format!(
+        "fsspec-kafka-admin-{nanos}-{}",
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    )
+}
+
+fn admin_filesystem(bootstrap: &str, options: KafkaFsOptions) -> KafkaFs<RdKafkaBackend> {
+    let config = HashMap::from([("bootstrap.servers".to_string(), bootstrap.to_string())]);
+    KafkaFs::new(
+        RdKafkaBackend::new(&config, TIMEOUT).unwrap(),
+        KafkaFsOptions {
+            allow_admin: true,
+            ..options
+        },
+    )
+    .unwrap()
+}
+
+#[test]
+fn mkdir_creates_and_rmdir_deletes_topics() {
+    let Some(bootstrap) = bootstrap() else { return };
+    let fs = admin_filesystem(
+        &bootstrap,
+        KafkaFsOptions {
+            partitions: 2,
+            topic_config: BTreeMap::from([("retention.ms".to_string(), "3600000".to_string())]),
+            ..KafkaFsOptions::default()
+        },
+    );
+    let name = unique_topic_name();
+
+    fs.mkdir(&format!("kafka://{name}"), false).unwrap();
+    assert_eq!(fs.backend().topic(&name).unwrap().partitions.len(), 2);
+    assert_eq!(
+        fs.backend().topic_config(&name).unwrap()["retention.ms"],
+        "3600000"
+    );
+    assert!(matches!(
+        fs.mkdir(&name, false),
+        Err(FsError::AlreadyExists(_))
+    ));
+    fs.makedirs(&name, true).unwrap();
+
+    fs.rmdir(&name).unwrap();
+    assert!(matches!(
+        fs.backend().topic(&name),
+        Err(FsError::NotFound(_))
+    ));
+    assert!(matches!(fs.rmdir(&name), Err(FsError::NotFound(_))));
+}
+
+#[test]
+fn mkdir_uses_broker_defaults() {
+    let Some(bootstrap) = bootstrap() else { return };
+    let fs = admin_filesystem(&bootstrap, KafkaFsOptions::default());
+    let name = unique_topic_name();
+
+    fs.mkdir(&name, false).unwrap();
+    let partitions = fs.backend().topic(&name).unwrap().partitions.len();
+    fs.rmdir(&name).unwrap();
+    assert!(partitions >= 1);
 }
