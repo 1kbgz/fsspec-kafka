@@ -9,5 +9,8 @@ This page contains auto-generated API reference documentation [#f1]_.
    /autoapi/test_all/index
    /autoapi/fsspec_kafka/index
    /autoapi/test_brokers/index
+   /autoapi/test_filesystem/index
+   /autoapi/test_storage_options/index
+   /autoapi/test_records_conformance/index
 
 .. [#f1] Created with `sphinx-autoapi <https://github.com/readthedocs/sphinx-autoapi>`_

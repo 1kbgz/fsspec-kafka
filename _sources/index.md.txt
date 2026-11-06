@@ -20,5 +20,48 @@ Kafka topics and partitions through fsspec
 
 ## Overview
 
+`fsspec-kafka` registers the `kafka://` protocol with fsspec. Topics are directories, and each partition is a directory of fixed offset windows that read as Arrow, Parquet, CSV, or JSON Lines.
+
+```python
+import fsspec
+import pandas as pd
+
+options = {"bootstrap.servers": "localhost:9092"}
+fs = fsspec.filesystem("kafka", **options)
+fs.ls("orders/0", detail=False)  # ["orders/0/0-10000.arrow", ..., "orders/0/20000-.arrow"]
+
+frame = pd.read_parquet("kafka://orders.parquet", storage_options=options)
+```
+
+Storage options are librdkafka properties, except for these:
+
+| Option                      | Default   | Meaning                                                   |
+| --------------------------- | --------- | --------------------------------------------------------- |
+| `timeout`                   | `10.0`    | Seconds to wait for broker requests                       |
+| `window_size`               | `10000`   | Offsets per window file                                   |
+| `list_format`               | `"arrow"` | Extension used when listing windows                       |
+| `batch_size`                | `1024`    | Messages per Arrow record batch                           |
+| `allow_admin`               | `False`   | Lets `mkdir` create topics and `rmdir` delete them        |
+| `partitions`, `replication` | `-1`      | Settings for created topics; `-1` uses the broker default |
+| `topic_config`              | `{}`      | Configuration for created topics                          |
+
+Options can also come from fsspec configuration, for example `FSSPEC_KAFKA='{"bootstrap.servers": "localhost:9092"}'`.
+
+On a compacted topic, `topic/records` holds the latest value of each key, so it works as a key-value store:
+
+```python
+state = fsspec.get_mapper("kafka://state/records", **options)
+state["user/42"] = b"..."
+```
+
+`fs.stream` follows a topic or one partition as it grows, returning `pyarrow.RecordBatch` objects with the same columns as `.arrow` files. It starts at `"end"` by default; `"beginning"`, a `datetime`, or the `positions` of an earlier stream are also accepted.
+
+```python
+with fs.stream("orders", start="beginning") as stream:
+    for batch in stream:  # waits for new messages
+        handle(batch)
+        save(stream.positions)  # {partition: next offset}, to resume with start=positions
+```
+
 > [!NOTE]
 > This library was generated using [copier](https://copier.readthedocs.io/en/stable/) from the [Base Python Project Template repository](https://github.com/python-project-templates/base).

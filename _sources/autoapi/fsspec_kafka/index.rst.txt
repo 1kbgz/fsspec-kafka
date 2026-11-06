@@ -10,7 +10,18 @@ Submodules
 .. toctree::
    :maxdepth: 1
 
+   /autoapi/fsspec_kafka/filesystem/index
    /autoapi/fsspec_kafka/fsspec_kafka/index
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   fsspec_kafka.KafkaFile
+   fsspec_kafka.KafkaFileSystem
+   fsspec_kafka.KafkaStream
 
 
 Functions
@@ -25,6 +36,358 @@ Functions
 
 Package Contents
 ----------------
+
+.. py:class:: KafkaFile(fs, path, mode, file)
+
+   Bases: :py:obj:`io.RawIOBase`
+
+
+   An open Kafka file. Closing a writer produces its value; leaving a ``with`` block
+   because of an exception discards it.
+
+   Initialize self.  See help(type(self)) for accurate signature.
+
+
+   .. py:attribute:: fs
+
+
+   .. py:attribute:: path
+
+
+   .. py:attribute:: mode
+
+
+   .. py:attribute:: _file
+
+
+   .. py:method:: readable()
+
+      Return whether object was opened for reading.
+
+      If False, read() will raise OSError.
+
+
+
+   .. py:method:: writable()
+
+      Return whether object was opened for writing.
+
+      If False, write() will raise OSError.
+
+
+
+   .. py:method:: seekable()
+
+      Return whether object supports random access.
+
+      If False, seek(), tell() and truncate() will raise OSError.
+      This method may need to do a test seek().
+
+
+
+   .. py:method:: read(size=-1)
+
+
+   .. py:method:: readall()
+
+      Read until EOF, using multiple read() call.
+
+
+
+   .. py:method:: readinto(buffer)
+
+
+   .. py:method:: write(data)
+
+
+   .. py:method:: seek(offset, whence=io.SEEK_SET)
+
+      Change the stream position to the given byte offset.
+
+        offset
+          The stream position, relative to 'whence'.
+        whence
+          The relative position to seek from.
+
+      The offset is interpreted relative to the position indicated by whence.
+      Values for whence are:
+
+      * os.SEEK_SET or 0 -- start of stream (the default); offset should be zero or positive
+      * os.SEEK_CUR or 1 -- current stream position; offset may be negative
+      * os.SEEK_END or 2 -- end of stream; offset is usually negative
+
+      Return the new absolute position.
+
+
+
+   .. py:method:: tell()
+
+      Return current stream position.
+
+
+
+   .. py:method:: flush()
+
+      Flush write buffers, if applicable.
+
+      This is not implemented for read-only and non-blocking streams.
+
+
+
+   .. py:method:: close()
+
+      Flush and close the IO object.
+
+      This method has no effect if the file is already closed.
+
+
+
+   .. py:method:: discard()
+
+      Drops pending writes and closes the file.
+
+
+
+   .. py:method:: __exit__(exc_type, exc_val, exc_tb)
+
+
+.. py:class:: KafkaFileSystem(timeout=10.0, window_size=10000, list_format='arrow', batch_size=1024, allow_admin=False, partitions=-1, replication=-1, topic_config=None, **storage_options)
+
+   Bases: :py:obj:`fsspec.AbstractFileSystem`
+
+
+   Kafka topics and partitions as an fsspec filesystem.
+
+   Storage options other than the named arguments are librdkafka properties, for example
+   ``fsspec.filesystem("kafka", **{"bootstrap.servers": "localhost:9092"})``. They can also
+   come from fsspec configuration, such as ``FSSPEC_KAFKA='{"bootstrap.servers": "..."}'``.
+
+   Create and configure file-system instance
+
+   Instances may be cachable, so if similar enough arguments are seen
+   a new instance is not required. The token attribute exists to allow
+   implementations to cache instances if they wish.
+
+   A reasonable default should be provided if there are no arguments.
+
+   Subclasses should call this method.
+
+   :param use_listings_cache: passed to ``DirCache``, if the implementation supports
+                              directory listing caching. Pass use_listings_cache=False
+                              to disable such caching.
+   :param listings_expiry_time: passed to ``DirCache``, if the implementation supports
+                                directory listing caching. Pass use_listings_cache=False
+                                to disable such caching.
+   :param max_paths: passed to ``DirCache``, if the implementation supports
+                     directory listing caching. Pass use_listings_cache=False
+                     to disable such caching.
+   :param skip_instance_cache: If this is a cachable implementation, pass True here to force
+                               creating a new instance even if a matching instance exists, and prevent
+                               storing this instance.
+   :type skip_instance_cache: bool
+   :param asynchronous:
+   :type asynchronous: bool
+   :param loop:
+   :type loop: asyncio-compatible IOLoop or None
+
+
+   .. py:attribute:: protocol
+      :value: ('kafka',)
+
+
+
+   .. py:attribute:: root_marker
+      :value: ''
+
+
+
+   .. py:attribute:: _rust
+
+
+   .. py:method:: ls(path, detail=True, **kwargs)
+
+      List objects at path.
+
+      This should include subdirectories and files at that location. The
+      difference between a file and a directory must be clear when details
+      are requested.
+
+      The specific keys, or perhaps a FileInfo class, or similar, is TBD,
+      but must be consistent across implementations.
+      Must include:
+
+      - full path to the entry (without protocol)
+      - size of the entry, in bytes. If the value cannot be determined, will
+        be ``None``.
+      - type of entry, "file", "directory" or other
+
+      Additional information
+      may be present, appropriate to the file-system, e.g., generation,
+      checksum, etc.
+
+      May use refresh=True|False to allow use of self._ls_from_cache to
+      check for a saved listing and avoid calling the backend. This would be
+      common where listing may be expensive.
+
+      :param path:
+      :type path: str
+      :param detail: if True, gives a list of dictionaries, where each is the same as
+                     the result of ``info(path)``. If False, gives a list of paths
+                     (str).
+      :type detail: bool
+      :param kwargs: information
+      :type kwargs: may have additional backend-specific options, such as version
+
+      :returns: * *List of strings if detail is False, or list of directory information*
+                * *dicts if detail is True.*
+
+
+
+   .. py:method:: info(path, **kwargs)
+
+      Give details of entry at path
+
+      Returns a single dictionary, with exactly the same information as ``ls``
+      would with ``detail=True``.
+
+      The default implementation calls ls and could be overridden by a
+      shortcut. kwargs are passed on to ```ls()``.
+
+      Some file systems might not be able to measure the file's size, in
+      which case, the returned dict will include ``'size': None``.
+
+      :returns: * **dict with keys** (*name (full path in the FS), size (in bytes), type (file,*)
+                * *directory, or something else) and other FS-specific keys.*
+
+
+
+   .. py:method:: _open(path, mode='rb', block_size=None, autocommit=True, cache_options=None, **kwargs)
+
+      Return raw bytes-mode file-like from the file-system
+
+
+
+   .. py:method:: cat_file(path, start=None, end=None, **kwargs)
+
+      Get the content of a file
+
+      :param path:
+      :type path: URL of file on this filesystems
+      :param start: Bytes limits of the read. If negative, backwards from end,
+                    like usual python slices. Either can be None for start or
+                    end of file, respectively
+      :type start: int
+      :param end: Bytes limits of the read. If negative, backwards from end,
+                  like usual python slices. Either can be None for start or
+                  end of file, respectively
+      :type end: int
+      :param kwargs:
+      :type kwargs: passed to ``open()``.
+
+
+
+   .. py:method:: pipe_file(path, value, mode='overwrite', **kwargs)
+
+      Set the bytes of given file
+
+
+
+   .. py:method:: rm_file(path)
+
+      Delete a file
+
+
+
+   .. py:method:: mkdir(path, create_parents=True, **kwargs)
+
+      Create directory entry at path
+
+      For systems that don't have true directories, may create an for
+      this instance only and not touch the real filesystem
+
+      :param path: location
+      :type path: str
+      :param create_parents: if True, this is equivalent to ``makedirs``
+      :type create_parents: bool
+      :param kwargs: may be permissions, etc.
+
+
+
+   .. py:method:: makedirs(path, exist_ok=False)
+
+      Recursively make directories
+
+      Creates directory at path and any intervening required directories.
+      Raises exception if, for instance, the path already exists but is a
+      file.
+
+      :param path: leaf directory name
+      :type path: str
+      :param exist_ok: If False, will error if the target already exists
+      :type exist_ok: bool (False)
+
+
+
+   .. py:method:: rmdir(path)
+
+      Remove a directory, if empty
+
+
+
+   .. py:method:: stream(path, start='end')
+
+      Follow a topic or one partition, including messages produced later.
+
+      ``start`` is ``"end"`` for new messages only, ``"beginning"`` for every retained
+      message, a ``datetime`` or ISO 8601 string for the first message at or after that
+      time, or a mapping from partition to the next offset to read, such as
+      ``KafkaStream.positions`` saved from an earlier stream. Partitions left out of the
+      mapping start at the beginning. Partitions added to the topic later are not followed.
+
+
+
+.. py:class:: KafkaStream(stream)
+
+   Messages from followed partitions as ``pyarrow.RecordBatch`` objects, with the same
+   columns as ``.arrow`` files. Iterating waits for messages and never ends; ``poll``
+   returns ``None`` when nothing arrives in time.
+
+
+   .. py:attribute:: _ipc
+
+
+   .. py:attribute:: _stream
+
+
+   .. py:property:: positions
+
+      The next offset to read in each partition. Pass these as ``start`` to resume.
+
+
+   .. py:property:: closed
+
+
+   .. py:method:: poll(timeout=None)
+
+      Wait up to ``timeout`` seconds, or indefinitely when ``None``, for messages and
+      return them as one record batch, or ``None`` when none arrived.
+
+
+
+   .. py:method:: close()
+
+
+   .. py:method:: __iter__()
+
+
+   .. py:method:: __next__()
+
+
+   .. py:method:: __enter__()
+
+
+   .. py:method:: __exit__(exc_type, exc_val, exc_tb)
+
 
 .. py:function:: builtin_features() -> list[str]
 

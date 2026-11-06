@@ -27,7 +27,7 @@
     <script src="../../_static/js/custom.js?v=956e5d78"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="fsspec_kafka.fsspec_kafka" href="fsspec_kafka/index.html" />
+    <link rel="next" title="fsspec_kafka.filesystem" href="filesystem/index.html" />
     <link rel="prev" title="test_all" href="../test_all/index.html" />
     <script>
       (function () {
@@ -103,6 +103,11 @@
       
 <ul class="fd-tree">
   <li class="fd-tree-item">
+    <a class="fd-link" href="filesystem/index.html">
+      <span class="fd-link-text">fsspec_kafka.filesystem</span>
+    </a>
+  </li>
+  <li class="fd-tree-item">
     <a class="fd-link" href="fsspec_kafka/index.html">
       <span class="fd-link-text">fsspec_kafka.fsspec_kafka</span>
     </a>
@@ -113,6 +118,21 @@
   <li class="fd-tree-item">
     <a class="fd-link" href="../test_brokers/index.html">
       <span class="fd-link-text">test_brokers</span>
+    </a>
+  </li>
+  <li class="fd-tree-item">
+    <a class="fd-link" href="../test_filesystem/index.html">
+      <span class="fd-link-text">test_filesystem</span>
+    </a>
+  </li>
+  <li class="fd-tree-item">
+    <a class="fd-link" href="../test_storage_options/index.html">
+      <span class="fd-link-text">test_storage_options</span>
+    </a>
+  </li>
+  <li class="fd-tree-item">
+    <a class="fd-link" href="../test_records_conformance/index.html">
+      <span class="fd-link-text">test_records_conformance</span>
     </a>
   </li>
 </ul>
@@ -143,10 +163,142 @@
     <a href="#submodules">Submodules</a>
   </li>
   <li class="fd-toc-item" data-depth="1">
+    <a href="#classes">Classes</a>
+  </li>
+  <li class="fd-toc-item" data-depth="1">
     <a href="#functions">Functions</a>
   </li>
   <li class="fd-toc-item" data-depth="1">
     <a href="#package-contents">Package Contents</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#fsspec_kafka.KafkaFile">KafkaFile</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.fs">KafkaFile.fs</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.path">KafkaFile.path</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.mode">KafkaFile.mode</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile._file">KafkaFile._file</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.readable">KafkaFile.readable()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.writable">KafkaFile.writable()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.seekable">KafkaFile.seekable()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.read">KafkaFile.read()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.readall">KafkaFile.readall()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.readinto">KafkaFile.readinto()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.write">KafkaFile.write()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.seek">KafkaFile.seek()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.tell">KafkaFile.tell()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.flush">KafkaFile.flush()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.close">KafkaFile.close()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.discard">KafkaFile.discard()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.__exit__">KafkaFile.__exit__()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#fsspec_kafka.KafkaFileSystem">KafkaFileSystem</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.protocol">KafkaFileSystem.protocol</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.root_marker">KafkaFileSystem.root_marker</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem._rust">KafkaFileSystem._rust</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.ls">KafkaFileSystem.ls()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.info">KafkaFileSystem.info()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem._open">KafkaFileSystem._open()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.cat_file">KafkaFileSystem.cat_file()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.pipe_file">KafkaFileSystem.pipe_file()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.rm_file">KafkaFileSystem.rm_file()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.mkdir">KafkaFileSystem.mkdir()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.makedirs">KafkaFileSystem.makedirs()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.rmdir">KafkaFileSystem.rmdir()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.stream">KafkaFileSystem.stream()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#fsspec_kafka.KafkaStream">KafkaStream</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaStream._ipc">KafkaStream._ipc</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaStream._stream">KafkaStream._stream</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaStream.positions">KafkaStream.positions</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaStream.closed">KafkaStream.closed</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaStream.poll">KafkaStream.poll()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaStream.close">KafkaStream.close()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaStream.__iter__">KafkaStream.__iter__()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaStream.__next__">KafkaStream.__next__()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaStream.__enter__">KafkaStream.__enter__()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaStream.__exit__">KafkaStream.__exit__()</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
     <a href="#fsspec_kafka.builtin_features">builtin_features()</a>
@@ -179,9 +331,26 @@
 <h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading">¶</a></h2>
 <div class="toctree-wrapper compound">
 <ul>
+<li class="toctree-l1"><a class="reference internal" href="filesystem/index.html">fsspec_kafka.filesystem</a></li>
 <li class="toctree-l1"><a class="reference internal" href="fsspec_kafka/index.html">fsspec_kafka.fsspec_kafka</a></li>
 </ul>
 </div>
+</section>
+<section id="classes">
+<h2>Classes<a class="headerlink" href="#classes" title="Link to this heading">¶</a></h2>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#fsspec_kafka.KafkaFile" title="fsspec_kafka.KafkaFile"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KafkaFile</span></code></a></p></td>
+<td><p>An open Kafka file. Closing a writer produces its value; leaving a <code class="docutils literal notranslate"><span class="pre">with</span></code> block</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#fsspec_kafka.KafkaFileSystem" title="fsspec_kafka.KafkaFileSystem"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KafkaFileSystem</span></code></a></p></td>
+<td><p>Kafka topics and partitions as an fsspec filesystem.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#fsspec_kafka.KafkaStream" title="fsspec_kafka.KafkaStream"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KafkaStream</span></code></a></p></td>
+<td><p>Messages from followed partitions as <code class="docutils literal notranslate"><span class="pre">pyarrow.RecordBatch</span></code> objects, with the same</p></td>
+</tr>
+</tbody>
+</table>
 </section>
 <section id="functions">
 <h2>Functions<a class="headerlink" href="#functions" title="Link to this heading">¶</a></h2>
@@ -201,6 +370,395 @@
 </section>
 <section id="package-contents">
 <h2>Package Contents<a class="headerlink" href="#package-contents" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFile">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">fsspec_kafka.</span></span><span class="sig-name descname"><span class="pre">KafkaFile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">file</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFile"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFile" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-obj docutils literal notranslate"><span class="pre">io.RawIOBase</span></code></p>
+<p>An open Kafka file. Closing a writer produces its value; leaving a <code class="docutils literal notranslate"><span class="pre">with</span></code> block
+because of an exception discards it.</p>
+<p>Initialize self.  See help(type(self)) for accurate signature.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFile.fs">
+<span class="sig-name descname"><span class="pre">fs</span></span><a class="headerlink" href="#fsspec_kafka.KafkaFile.fs" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFile.path">
+<span class="sig-name descname"><span class="pre">path</span></span><a class="headerlink" href="#fsspec_kafka.KafkaFile.path" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFile.mode">
+<span class="sig-name descname"><span class="pre">mode</span></span><a class="headerlink" href="#fsspec_kafka.KafkaFile.mode" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFile._file">
+<span class="sig-name descname"><span class="pre">_file</span></span><a class="headerlink" href="#fsspec_kafka.KafkaFile._file" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFile.readable">
+<span class="sig-name descname"><span class="pre">readable</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFile.readable"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFile.readable" title="Link to this definition">¶</a></dt>
+<dd><p>Return whether object was opened for reading.</p>
+<p>If False, read() will raise OSError.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFile.writable">
+<span class="sig-name descname"><span class="pre">writable</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFile.writable"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFile.writable" title="Link to this definition">¶</a></dt>
+<dd><p>Return whether object was opened for writing.</p>
+<p>If False, write() will raise OSError.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFile.seekable">
+<span class="sig-name descname"><span class="pre">seekable</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFile.seekable"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFile.seekable" title="Link to this definition">¶</a></dt>
+<dd><p>Return whether object supports random access.</p>
+<p>If False, seek(), tell() and truncate() will raise OSError.
+This method may need to do a test seek().</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFile.read">
+<span class="sig-name descname"><span class="pre">read</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFile.read"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFile.read" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFile.readall">
+<span class="sig-name descname"><span class="pre">readall</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFile.readall"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFile.readall" title="Link to this definition">¶</a></dt>
+<dd><p>Read until EOF, using multiple read() call.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFile.readinto">
+<span class="sig-name descname"><span class="pre">readinto</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">buffer</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFile.readinto"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFile.readinto" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFile.write">
+<span class="sig-name descname"><span class="pre">write</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFile.write"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFile.write" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFile.seek">
+<span class="sig-name descname"><span class="pre">seek</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">offset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">whence</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">io.SEEK_SET</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFile.seek"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFile.seek" title="Link to this definition">¶</a></dt>
+<dd><p>Change the stream position to the given byte offset.</p>
+<blockquote>
+<div><dl class="simple">
+<dt>offset</dt><dd><p>The stream position, relative to ‘whence’.</p>
+</dd>
+<dt>whence</dt><dd><p>The relative position to seek from.</p>
+</dd>
+</dl>
+</div></blockquote>
+<p>The offset is interpreted relative to the position indicated by whence.
+Values for whence are:</p>
+<ul class="simple">
+<li><p>os.SEEK_SET or 0 – start of stream (the default); offset should be zero or positive</p></li>
+<li><p>os.SEEK_CUR or 1 – current stream position; offset may be negative</p></li>
+<li><p>os.SEEK_END or 2 – end of stream; offset is usually negative</p></li>
+</ul>
+<p>Return the new absolute position.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFile.tell">
+<span class="sig-name descname"><span class="pre">tell</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFile.tell"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFile.tell" title="Link to this definition">¶</a></dt>
+<dd><p>Return current stream position.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFile.flush">
+<span class="sig-name descname"><span class="pre">flush</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFile.flush"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFile.flush" title="Link to this definition">¶</a></dt>
+<dd><p>Flush write buffers, if applicable.</p>
+<p>This is not implemented for read-only and non-blocking streams.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFile.close">
+<span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFile.close"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFile.close" title="Link to this definition">¶</a></dt>
+<dd><p>Flush and close the IO object.</p>
+<p>This method has no effect if the file is already closed.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFile.discard">
+<span class="sig-name descname"><span class="pre">discard</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFile.discard"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFile.discard" title="Link to this definition">¶</a></dt>
+<dd><p>Drops pending writes and closes the file.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFile.__exit__">
+<span class="sig-name descname"><span class="pre">__exit__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">exc_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exc_val</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exc_tb</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFile.__exit__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFile.__exit__" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFileSystem">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">fsspec_kafka.</span></span><span class="sig-name descname"><span class="pre">KafkaFileSystem</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">list_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'arrow'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batch_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1024</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">allow_admin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">partitions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">replication</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topic_config</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">storage_options</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFileSystem"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-obj docutils literal notranslate"><span class="pre">fsspec.AbstractFileSystem</span></code></p>
+<p>Kafka topics and partitions as an fsspec filesystem.</p>
+<p>Storage options other than the named arguments are librdkafka properties, for example
+<code class="docutils literal notranslate"><span class="pre">fsspec.filesystem(&quot;kafka&quot;,</span> <span class="pre">**{&quot;bootstrap.servers&quot;:</span> <span class="pre">&quot;localhost:9092&quot;})</span></code>. They can also
+come from fsspec configuration, such as <code class="docutils literal notranslate"><span class="pre">FSSPEC_KAFKA='{&quot;bootstrap.servers&quot;:</span> <span class="pre">&quot;...&quot;}'</span></code>.</p>
+<p>Create and configure file-system instance</p>
+<p>Instances may be cachable, so if similar enough arguments are seen
+a new instance is not required. The token attribute exists to allow
+implementations to cache instances if they wish.</p>
+<p>A reasonable default should be provided if there are no arguments.</p>
+<p>Subclasses should call this method.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>use_listings_cache</strong> – passed to <code class="docutils literal notranslate"><span class="pre">DirCache</span></code>, if the implementation supports
+directory listing caching. Pass use_listings_cache=False
+to disable such caching.</p></li>
+<li><p><strong>listings_expiry_time</strong> – passed to <code class="docutils literal notranslate"><span class="pre">DirCache</span></code>, if the implementation supports
+directory listing caching. Pass use_listings_cache=False
+to disable such caching.</p></li>
+<li><p><strong>max_paths</strong> – passed to <code class="docutils literal notranslate"><span class="pre">DirCache</span></code>, if the implementation supports
+directory listing caching. Pass use_listings_cache=False
+to disable such caching.</p></li>
+<li><p><strong>skip_instance_cache</strong> (<em>bool</em>) – If this is a cachable implementation, pass True here to force
+creating a new instance even if a matching instance exists, and prevent
+storing this instance.</p></li>
+<li><p><strong>asynchronous</strong> (<em>bool</em>)</p></li>
+<li><p><strong>loop</strong> (<em>asyncio-compatible IOLoop</em><em> or </em><em>None</em>)</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFileSystem.protocol">
+<span class="sig-name descname"><span class="pre">protocol</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">('kafka',)</span></em><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem.protocol" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFileSystem.root_marker">
+<span class="sig-name descname"><span class="pre">root_marker</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">''</span></em><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem.root_marker" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFileSystem._rust">
+<span class="sig-name descname"><span class="pre">_rust</span></span><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem._rust" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFileSystem.ls">
+<span class="sig-name descname"><span class="pre">ls</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">detail</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFileSystem.ls"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem.ls" title="Link to this definition">¶</a></dt>
+<dd><p>List objects at path.</p>
+<p>This should include subdirectories and files at that location. The
+difference between a file and a directory must be clear when details
+are requested.</p>
+<p>The specific keys, or perhaps a FileInfo class, or similar, is TBD,
+but must be consistent across implementations.
+Must include:</p>
+<ul class="simple">
+<li><p>full path to the entry (without protocol)</p></li>
+<li><p>size of the entry, in bytes. If the value cannot be determined, will
+be <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p></li>
+<li><p>type of entry, “file”, “directory” or other</p></li>
+</ul>
+<p>Additional information
+may be present, appropriate to the file-system, e.g., generation,
+checksum, etc.</p>
+<p>May use refresh=True|False to allow use of self._ls_from_cache to
+check for a saved listing and avoid calling the backend. This would be
+common where listing may be expensive.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path</strong> (<em>str</em>)</p></li>
+<li><p><strong>detail</strong> (<em>bool</em>) – if True, gives a list of dictionaries, where each is the same as
+the result of <code class="docutils literal notranslate"><span class="pre">info(path)</span></code>. If False, gives a list of paths
+(str).</p></li>
+<li><p><strong>kwargs</strong> (<em>may have additional backend-specific options</em><em>, </em><em>such as version</em>) – information</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>List of strings if detail is False, or list of directory information</em></p></li>
+<li><p><em>dicts if detail is True.</em></p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFileSystem.info">
+<span class="sig-name descname"><span class="pre">info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFileSystem.info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem.info" title="Link to this definition">¶</a></dt>
+<dd><p>Give details of entry at path</p>
+<p>Returns a single dictionary, with exactly the same information as <code class="docutils literal notranslate"><span class="pre">ls</span></code>
+would with <code class="docutils literal notranslate"><span class="pre">detail=True</span></code>.</p>
+<p>The default implementation calls ls and could be overridden by a
+shortcut. kwargs are passed on to <code class="docutils literal notranslate"><span class="pre">`ls()</span></code>.</p>
+<p>Some file systems might not be able to measure the file’s size, in
+which case, the returned dict will include <code class="docutils literal notranslate"><span class="pre">'size':</span> <span class="pre">None</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><strong>dict with keys</strong> (<em>name (full path in the FS), size (in bytes), type (file,</em>)</p></li>
+<li><p><em>directory, or something else) and other FS-specific keys.</em></p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFileSystem._open">
+<span class="sig-name descname"><span class="pre">_open</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'rb'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">block_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">autocommit</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cache_options</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFileSystem._open"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem._open" title="Link to this definition">¶</a></dt>
+<dd><p>Return raw bytes-mode file-like from the file-system</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFileSystem.cat_file">
+<span class="sig-name descname"><span class="pre">cat_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFileSystem.cat_file"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem.cat_file" title="Link to this definition">¶</a></dt>
+<dd><p>Get the content of a file</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path</strong> (<em>URL</em><em> of </em><em>file on this filesystems</em>)</p></li>
+<li><p><strong>start</strong> (<em>int</em>) – Bytes limits of the read. If negative, backwards from end,
+like usual python slices. Either can be None for start or
+end of file, respectively</p></li>
+<li><p><strong>end</strong> (<em>int</em>) – Bytes limits of the read. If negative, backwards from end,
+like usual python slices. Either can be None for start or
+end of file, respectively</p></li>
+<li><p><strong>kwargs</strong> (passed to <code class="docutils literal notranslate"><span class="pre">open()</span></code>.)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFileSystem.pipe_file">
+<span class="sig-name descname"><span class="pre">pipe_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'overwrite'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFileSystem.pipe_file"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem.pipe_file" title="Link to this definition">¶</a></dt>
+<dd><p>Set the bytes of given file</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFileSystem.rm_file">
+<span class="sig-name descname"><span class="pre">rm_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFileSystem.rm_file"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem.rm_file" title="Link to this definition">¶</a></dt>
+<dd><p>Delete a file</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFileSystem.mkdir">
+<span class="sig-name descname"><span class="pre">mkdir</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">create_parents</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFileSystem.mkdir"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem.mkdir" title="Link to this definition">¶</a></dt>
+<dd><p>Create directory entry at path</p>
+<p>For systems that don’t have true directories, may create an for
+this instance only and not touch the real filesystem</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path</strong> (<em>str</em>) – location</p></li>
+<li><p><strong>create_parents</strong> (<em>bool</em>) – if True, this is equivalent to <code class="docutils literal notranslate"><span class="pre">makedirs</span></code></p></li>
+<li><p><strong>kwargs</strong> – may be permissions, etc.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFileSystem.makedirs">
+<span class="sig-name descname"><span class="pre">makedirs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exist_ok</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFileSystem.makedirs"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem.makedirs" title="Link to this definition">¶</a></dt>
+<dd><p>Recursively make directories</p>
+<p>Creates directory at path and any intervening required directories.
+Raises exception if, for instance, the path already exists but is a
+file.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path</strong> (<em>str</em>) – leaf directory name</p></li>
+<li><p><strong>exist_ok</strong> (<em>bool</em><em> (</em><em>False</em><em>)</em>) – If False, will error if the target already exists</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFileSystem.rmdir">
+<span class="sig-name descname"><span class="pre">rmdir</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFileSystem.rmdir"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem.rmdir" title="Link to this definition">¶</a></dt>
+<dd><p>Remove a directory, if empty</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFileSystem.stream">
+<span class="sig-name descname"><span class="pre">stream</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'end'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFileSystem.stream"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem.stream" title="Link to this definition">¶</a></dt>
+<dd><p>Follow a topic or one partition, including messages produced later.</p>
+<p><code class="docutils literal notranslate"><span class="pre">start</span></code> is <code class="docutils literal notranslate"><span class="pre">&quot;end&quot;</span></code> for new messages only, <code class="docutils literal notranslate"><span class="pre">&quot;beginning&quot;</span></code> for every retained
+message, a <code class="docutils literal notranslate"><span class="pre">datetime</span></code> or ISO 8601 string for the first message at or after that
+time, or a mapping from partition to the next offset to read, such as
+<code class="docutils literal notranslate"><span class="pre">KafkaStream.positions</span></code> saved from an earlier stream. Partitions left out of the
+mapping start at the beginning. Partitions added to the topic later are not followed.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaStream">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">fsspec_kafka.</span></span><span class="sig-name descname"><span class="pre">KafkaStream</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stream</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaStream"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaStream" title="Link to this definition">¶</a></dt>
+<dd><p>Messages from followed partitions as <code class="docutils literal notranslate"><span class="pre">pyarrow.RecordBatch</span></code> objects, with the same
+columns as <code class="docutils literal notranslate"><span class="pre">.arrow</span></code> files. Iterating waits for messages and never ends; <code class="docutils literal notranslate"><span class="pre">poll</span></code>
+returns <code class="docutils literal notranslate"><span class="pre">None</span></code> when nothing arrives in time.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaStream._ipc">
+<span class="sig-name descname"><span class="pre">_ipc</span></span><a class="headerlink" href="#fsspec_kafka.KafkaStream._ipc" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaStream._stream">
+<span class="sig-name descname"><span class="pre">_stream</span></span><a class="headerlink" href="#fsspec_kafka.KafkaStream._stream" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaStream.positions">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">positions</span></span><a class="headerlink" href="#fsspec_kafka.KafkaStream.positions" title="Link to this definition">¶</a></dt>
+<dd><p>The next offset to read in each partition. Pass these as <code class="docutils literal notranslate"><span class="pre">start</span></code> to resume.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaStream.closed">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">closed</span></span><a class="headerlink" href="#fsspec_kafka.KafkaStream.closed" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaStream.poll">
+<span class="sig-name descname"><span class="pre">poll</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaStream.poll"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaStream.poll" title="Link to this definition">¶</a></dt>
+<dd><p>Wait up to <code class="docutils literal notranslate"><span class="pre">timeout</span></code> seconds, or indefinitely when <code class="docutils literal notranslate"><span class="pre">None</span></code>, for messages and
+return them as one record batch, or <code class="docutils literal notranslate"><span class="pre">None</span></code> when none arrived.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaStream.close">
+<span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaStream.close"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaStream.close" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaStream.__iter__">
+<span class="sig-name descname"><span class="pre">__iter__</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaStream.__iter__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaStream.__iter__" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaStream.__next__">
+<span class="sig-name descname"><span class="pre">__next__</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaStream.__next__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaStream.__next__" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaStream.__enter__">
+<span class="sig-name descname"><span class="pre">__enter__</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaStream.__enter__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaStream.__enter__" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaStream.__exit__">
+<span class="sig-name descname"><span class="pre">__exit__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">exc_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exc_val</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exc_tb</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaStream.__exit__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaStream.__exit__" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 <dl class="py function">
 <dt class="sig sig-object py" id="fsspec_kafka.builtin_features">
 <span class="sig-prename descclassname"><span class="pre">fsspec_kafka.</span></span><span class="sig-name descname"><span class="pre">builtin_features</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#fsspec_kafka.builtin_features" title="Link to this definition">¶</a></dt>
@@ -229,10 +787,10 @@
       <span class="fd-pagination-title">test_all</span>
     </span>
   </a>
-  <a class="fd-pagination-card fd-pagination-next" href="fsspec_kafka/index.html" title="Next: fsspec_kafka.fsspec_kafka">
+  <a class="fd-pagination-card fd-pagination-next" href="filesystem/index.html" title="Next: fsspec_kafka.filesystem">
     <span class="fd-pagination-text">
       <span class="fd-pagination-label">Next</span>
-      <span class="fd-pagination-title">fsspec_kafka.fsspec_kafka</span>
+      <span class="fd-pagination-title">fsspec_kafka.filesystem</span>
     </span>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="fd-icon "><path d="m9 18 6-6-6-6"/></svg>
   </a>
@@ -256,10 +814,142 @@
     <a href="#submodules">Submodules</a>
   </li>
   <li class="fd-toc-item" data-depth="1">
+    <a href="#classes">Classes</a>
+  </li>
+  <li class="fd-toc-item" data-depth="1">
     <a href="#functions">Functions</a>
   </li>
   <li class="fd-toc-item" data-depth="1">
     <a href="#package-contents">Package Contents</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#fsspec_kafka.KafkaFile">KafkaFile</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.fs">KafkaFile.fs</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.path">KafkaFile.path</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.mode">KafkaFile.mode</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile._file">KafkaFile._file</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.readable">KafkaFile.readable()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.writable">KafkaFile.writable()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.seekable">KafkaFile.seekable()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.read">KafkaFile.read()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.readall">KafkaFile.readall()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.readinto">KafkaFile.readinto()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.write">KafkaFile.write()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.seek">KafkaFile.seek()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.tell">KafkaFile.tell()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.flush">KafkaFile.flush()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.close">KafkaFile.close()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.discard">KafkaFile.discard()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFile.__exit__">KafkaFile.__exit__()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#fsspec_kafka.KafkaFileSystem">KafkaFileSystem</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.protocol">KafkaFileSystem.protocol</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.root_marker">KafkaFileSystem.root_marker</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem._rust">KafkaFileSystem._rust</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.ls">KafkaFileSystem.ls()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.info">KafkaFileSystem.info()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem._open">KafkaFileSystem._open()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.cat_file">KafkaFileSystem.cat_file()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.pipe_file">KafkaFileSystem.pipe_file()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.rm_file">KafkaFileSystem.rm_file()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.mkdir">KafkaFileSystem.mkdir()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.makedirs">KafkaFileSystem.makedirs()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.rmdir">KafkaFileSystem.rmdir()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.stream">KafkaFileSystem.stream()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#fsspec_kafka.KafkaStream">KafkaStream</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaStream._ipc">KafkaStream._ipc</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaStream._stream">KafkaStream._stream</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaStream.positions">KafkaStream.positions</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaStream.closed">KafkaStream.closed</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaStream.poll">KafkaStream.poll()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaStream.close">KafkaStream.close()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaStream.__iter__">KafkaStream.__iter__()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaStream.__next__">KafkaStream.__next__()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaStream.__enter__">KafkaStream.__enter__()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaStream.__exit__">KafkaStream.__exit__()</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
     <a href="#fsspec_kafka.builtin_features">builtin_features()</a>

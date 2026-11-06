@@ -1,0 +1,65 @@
+test_filesystem
+===============
+
+.. py:module:: test_filesystem
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   test_filesystem.BOOTSTRAP
+   test_filesystem.pytestmark
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   test_filesystem.options
+   test_filesystem.topic
+   test_filesystem.test_lists_topics_partitions_and_windows
+   test_filesystem.test_reads_windows_with_pyarrow
+   test_filesystem.test_reads_topic_snapshots_with_pandas
+   test_filesystem.test_records_through_open_and_get_mapper
+   test_filesystem.test_failed_writes_are_discarded
+   test_filesystem.test_topic_admin_needs_allow_admin
+   test_filesystem.test_missing_paths_raise_file_not_found
+   test_filesystem.test_files_support_raw_io
+   test_filesystem.test_streams_follow_new_messages_and_resume
+
+
+Module Contents
+---------------
+
+.. py:data:: BOOTSTRAP
+
+.. py:data:: pytestmark
+
+.. py:function:: options()
+
+.. py:function:: topic(options)
+
+   A compacted single-partition topic holding records a, b and c.
+
+
+.. py:function:: test_lists_topics_partitions_and_windows(options, topic)
+
+.. py:function:: test_reads_windows_with_pyarrow(options, topic)
+
+.. py:function:: test_reads_topic_snapshots_with_pandas(options, topic)
+
+.. py:function:: test_records_through_open_and_get_mapper(options, topic)
+
+.. py:function:: test_failed_writes_are_discarded(options, topic)
+
+.. py:function:: test_topic_admin_needs_allow_admin(options)
+
+.. py:function:: test_missing_paths_raise_file_not_found(options, topic)
+
+.. py:function:: test_files_support_raw_io(options, topic)
+
+.. py:function:: test_streams_follow_new_messages_and_resume(options, topic)
+

@@ -102,6 +102,11 @@
       
 <ul class="fd-tree">
   <li class="fd-tree-item">
+    <a class="fd-link" href="autoapi/fsspec_kafka/filesystem/index.html">
+      <span class="fd-link-text">fsspec_kafka.filesystem</span>
+    </a>
+  </li>
+  <li class="fd-tree-item">
     <a class="fd-link" href="autoapi/fsspec_kafka/fsspec_kafka/index.html">
       <span class="fd-link-text">fsspec_kafka.fsspec_kafka</span>
     </a>
@@ -112,6 +117,21 @@
   <li class="fd-tree-item">
     <a class="fd-link" href="autoapi/test_brokers/index.html">
       <span class="fd-link-text">test_brokers</span>
+    </a>
+  </li>
+  <li class="fd-tree-item">
+    <a class="fd-link" href="autoapi/test_filesystem/index.html">
+      <span class="fd-link-text">test_filesystem</span>
+    </a>
+  </li>
+  <li class="fd-tree-item">
+    <a class="fd-link" href="autoapi/test_storage_options/index.html">
+      <span class="fd-link-text">test_storage_options</span>
+    </a>
+  </li>
+  <li class="fd-tree-item">
+    <a class="fd-link" href="autoapi/test_records_conformance/index.html">
+      <span class="fd-link-text">test_records_conformance</span>
     </a>
   </li>
 </ul>
@@ -159,6 +179,69 @@
 <a class="reference external" href="https://pypi.python.org/pypi/fsspec-kafka"><img alt="PyPI" src="https://img.shields.io/pypi/v/fsspec-kafka.svg" /></a></p>
 <section id="overview">
 <h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">fsspec-kafka</span></code> registers the <code class="docutils literal notranslate"><span class="pre">kafka://</span></code> protocol with fsspec. Topics are directories, and each partition is a directory of fixed offset windows that read as Arrow, Parquet, CSV, or JSON Lines.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">fsspec</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+
+<span class="n">options</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"bootstrap.servers"</span><span class="p">:</span> <span class="s2">"localhost:9092"</span><span class="p">}</span>
+<span class="n">fs</span> <span class="o">=</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">filesystem</span><span class="p">(</span><span class="s2">"kafka"</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
+<span class="n">fs</span><span class="o">.</span><span class="n">ls</span><span class="p">(</span><span class="s2">"orders/0"</span><span class="p">,</span> <span class="n">detail</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>  <span class="c1"># ["orders/0/0-10000.arrow", ..., "orders/0/20000-.arrow"]</span>
+
+<span class="n">frame</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="s2">"kafka://orders.parquet"</span><span class="p">,</span> <span class="n">storage_options</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Storage options are librdkafka properties, except for these:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">timeout</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">10.0</span></code></p></td>
+<td><p>Seconds to wait for broker requests</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">window_size</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">10000</span></code></p></td>
+<td><p>Offsets per window file</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">list_format</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;arrow&quot;</span></code></p></td>
+<td><p>Extension used when listing windows</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">batch_size</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1024</span></code></p></td>
+<td><p>Messages per Arrow record batch</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">allow_admin</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
+<td><p>Lets <code class="docutils literal notranslate"><span class="pre">mkdir</span></code> create topics and <code class="docutils literal notranslate"><span class="pre">rmdir</span></code> delete them</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">partitions</span></code>, <code class="docutils literal notranslate"><span class="pre">replication</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">-1</span></code></p></td>
+<td><p>Settings for created topics; <code class="docutils literal notranslate"><span class="pre">-1</span></code> uses the broker default</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">topic_config</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">{}</span></code></p></td>
+<td><p>Configuration for created topics</p></td>
+</tr>
+</tbody>
+</table>
+<p>Options can also come from fsspec configuration, for example <code class="docutils literal notranslate"><span class="pre">FSSPEC_KAFKA='{&quot;bootstrap.servers&quot;:</span> <span class="pre">&quot;localhost:9092&quot;}'</span></code>.</p>
+<p>On a compacted topic, <code class="docutils literal notranslate"><span class="pre">topic/records</span></code> holds the latest value of each key, so it works as a key-value store:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span> <span class="o">=</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">get_mapper</span><span class="p">(</span><span class="s2">"kafka://state/records"</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
+<span class="n">state</span><span class="p">[</span><span class="s2">"user/42"</span><span class="p">]</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">"..."</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">fs.stream</span></code> follows a topic or one partition as it grows, returning <code class="docutils literal notranslate"><span class="pre">pyarrow.RecordBatch</span></code> objects with the same columns as <code class="docutils literal notranslate"><span class="pre">.arrow</span></code> files. It starts at <code class="docutils literal notranslate"><span class="pre">&quot;end&quot;</span></code> by default; <code class="docutils literal notranslate"><span class="pre">&quot;beginning&quot;</span></code>, a <code class="docutils literal notranslate"><span class="pre">datetime</span></code>, or the <code class="docutils literal notranslate"><span class="pre">positions</span></code> of an earlier stream are also accepted.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">fs</span><span class="o">.</span><span class="n">stream</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="s2">"beginning"</span><span class="p">)</span> <span class="k">as</span> <span class="n">stream</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">batch</span> <span class="ow">in</span> <span class="n">stream</span><span class="p">:</span>  <span class="c1"># waits for new messages</span>
+        <span class="n">handle</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span>
+        <span class="n">save</span><span class="p">(</span><span class="n">stream</span><span class="o">.</span><span class="n">positions</span><span class="p">)</span>  <span class="c1"># {partition: next offset}, to resume with start=positions</span>
+</pre></div>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>This library was generated using <a class="reference external" href="https://copier.readthedocs.io/en/stable/">copier</a> from the <a class="reference external" href="https://github.com/python-project-templates/base">Base Python Project Template repository</a>.</p>

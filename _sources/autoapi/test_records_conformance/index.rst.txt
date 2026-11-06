@@ -1,0 +1,32 @@
+test_records_conformance
+========================
+
+.. py:module:: test_records_conformance
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   test_records_conformance.BOOTSTRAP
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   test_records_conformance.records_storage_options
+   test_records_conformance.records_url
+
+
+Module Contents
+---------------
+
+.. py:data:: BOOTSTRAP
+
+.. py:function:: records_storage_options()
+
+.. py:function:: records_url(records_storage_options)
+

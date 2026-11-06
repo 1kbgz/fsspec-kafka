@@ -4,6 +4,16 @@ fsspec_kafka.fsspec_kafka
 .. py:module:: fsspec_kafka.fsspec_kafka
 
 
+Classes
+-------
+
+.. autoapisummary::
+
+   fsspec_kafka.fsspec_kafka.RustKafkaFile
+   fsspec_kafka.fsspec_kafka.RustKafkaStream
+   fsspec_kafka.fsspec_kafka.RustKafkaFs
+
+
 Functions
 ---------
 
@@ -22,4 +32,79 @@ Module Contents
 .. py:function:: builtin_features() -> list[str]
 
 .. py:function:: list_topics(config: dict[str, str], timeout: float = 10.0) -> list[str]
+
+.. py:class:: RustKafkaFile
+
+   .. py:property:: closed
+      :type: bool
+
+
+
+   .. py:method:: read(size: int = -1) -> bytes
+
+
+   .. py:method:: write(data: bytes) -> int
+
+
+   .. py:method:: seek(offset: int, whence: int = 0) -> int
+
+
+   .. py:method:: tell() -> int
+
+
+   .. py:method:: flush() -> None
+
+
+   .. py:method:: close() -> None
+
+
+   .. py:method:: discard() -> None
+
+
+.. py:class:: RustKafkaStream
+
+   .. py:property:: positions
+      :type: dict[int, int]
+
+
+
+   .. py:property:: closed
+      :type: bool
+
+
+
+   .. py:method:: poll(timeout: float) -> bytes | None
+
+
+   .. py:method:: close() -> None
+
+
+.. py:class:: RustKafkaFs(config: dict[str, str], timeout: float = 10.0, window_size: int = 10000, list_format: str = 'arrow', batch_size: int = 1024, allow_admin: bool = False, partitions: int = -1, replication: int = -1, topic_config: dict[str, str] = ...)
+
+   .. py:method:: ls(path: str) -> list[dict]
+
+
+   .. py:method:: info(path: str) -> dict
+
+
+   .. py:method:: open(path: str, mode: str = 'rb') -> RustKafkaFile
+
+
+   .. py:method:: cat_file(path: str, start: int | None = None, end: int | None = None) -> bytes
+
+
+   .. py:method:: pipe_file(path: str, data: bytes) -> None
+
+
+   .. py:method:: rm_file(path: str) -> None
+
+
+   .. py:method:: mkdir(path: str) -> None
+
+
+   .. py:method:: rmdir(path: str) -> None
+
+
+   .. py:method:: stream(path: str, start: str | int | dict[int, int]) -> RustKafkaStream
+
 
