@@ -73,7 +73,7 @@ pub struct MessageOffset {
 pub type MessageStream = Box<dyn Iterator<Item = FsResult<Message>> + Send>;
 
 /// Cluster operations used by `KafkaFs`.
-pub trait KafkaBackend: Send + Sync {
+pub trait KafkaBackend: Send + Sync + 'static {
     fn list_topics(&self) -> FsResult<Vec<TopicInfo>>;
 
     /// Fails with `FsError::NotFound` when the topic does not exist.

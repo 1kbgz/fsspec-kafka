@@ -3,6 +3,7 @@ use fsspec_data::DataFormat;
 use fsspec_rs::{FsError, FsResult};
 
 pub const META_DIR: &str = "_meta";
+pub const RECORDS_DIR: &str = "records";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MetaFile {
@@ -73,6 +74,12 @@ pub enum KafkaPath {
         timestamp_ms: i64,
         format: DataFormat,
     },
+    /// `topic/records/{key...}`: the latest value of a key in a compacted topic. The key is
+    /// the rest of the path, unchanged; an empty key is the records directory itself.
+    Records {
+        topic: String,
+        key: String,
+    },
     /// `topic.format`: every partition of the topic.
     TopicSnapshot {
         topic: String,
@@ -99,6 +106,10 @@ impl KafkaPath {
                     format,
                 },
                 None => Self::Topic(topic_name(name)?),
+            },
+            [topic, RECORDS_DIR, key @ ..] => Self::Records {
+                topic: topic_name(topic)?,
+                key: key.join("/"),
             },
             [topic, META_DIR] => Self::MetaDir(topic_name(topic)?),
             [topic, META_DIR, file] => Self::Meta(
@@ -199,6 +210,8 @@ impl KafkaPath {
                     .to_rfc3339_opts(SecondsFormat::AutoSi, true);
                 format!("{topic}/{partition}/@{time}.{}", format.as_str())
             }
+            Self::Records { topic, key } if key.is_empty() => format!("{topic}/{RECORDS_DIR}"),
+            Self::Records { topic, key } => format!("{topic}/{RECORDS_DIR}/{key}"),
             Self::TopicSnapshot { topic, format } => format!("{topic}.{}", format.as_str()),
         }
     }
@@ -404,6 +417,22 @@ mod tests {
     }
 
     #[test]
+    fn parses_records() {
+        let records = |key: &str| KafkaPath::Records {
+            topic: "state".into(),
+            key: key.into(),
+        };
+        round_trip("state/records", records(""));
+        round_trip("kafka://state/records/", records(""));
+        round_trip("state/records/ns/a%2Fb", records("ns/a%2Fb"));
+        round_trip("state/records/0/10-19.arrow", records("0/10-19.arrow"));
+        assert_eq!(
+            KafkaPath::parse("state/records//ns/key/").unwrap(),
+            records("ns/key")
+        );
+    }
+
+    #[test]
     fn accepts_extension_aliases() {
         assert_eq!(
             KafkaPath::parse("orders.ndjson").unwrap(),
@@ -430,6 +459,7 @@ mod tests {
             "orders/0/@2026-11-01.arrow",
             "orders/0/@2026-11-01T00:00:00Z.txt",
             "orders/0/@2026-11-01T00:00:00Z.arrow?limit=1",
+            "orders/records/key?start=1",
             "orders?start=1",
             "orders/0.arrow?offset=1",
             "orders/0.arrow?limit=-1",

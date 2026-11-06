@@ -646,3 +646,81 @@ fn mkdir_uses_broker_defaults() {
     fs.rmdir(&name).unwrap();
     assert!(partitions >= 1);
 }
+
+#[test]
+fn records_round_trip_on_a_compacted_topic() {
+    let Some(bootstrap) = bootstrap() else { return };
+    let fs = admin_filesystem(
+        &bootstrap,
+        KafkaFsOptions {
+            partitions: 3,
+            ..KafkaFsOptions::default()
+        },
+    );
+    let name = unique_topic_name();
+    fs.makedirs(&format!("kafka://{name}/records"), false)
+        .unwrap();
+    assert_eq!(
+        fs.backend().topic_config(&name).unwrap()["cleanup.policy"],
+        "compact"
+    );
+    let root = format!("{name}/records");
+    let binary = (0..=255).collect::<Vec<u8>>();
+
+    fs.pipe_file(&format!("{root}/ns/binary"), &binary).unwrap();
+    fs.pipe_file(&format!("{root}/ns/empty"), b"").unwrap();
+    for index in 0..20 {
+        fs.pipe_file(&format!("{root}/many/key-{index:02}"), b"v1")
+            .unwrap();
+    }
+    fs.pipe_file(&format!("{root}/many/key-00"), b"v2").unwrap();
+    fs.rm_file(&format!("{root}/many/key-01")).unwrap();
+
+    // A second filesystem replays the topic from the start.
+    let reader = filesystem(&bootstrap);
+    assert_eq!(
+        reader
+            .cat_file(&format!("{root}/ns/binary"), None, None)
+            .unwrap(),
+        binary
+    );
+    assert_eq!(
+        reader
+            .cat_file(&format!("{root}/ns/empty"), None, None)
+            .unwrap(),
+        b""
+    );
+    assert_eq!(
+        reader
+            .cat_file(&format!("{root}/many/key-00"), None, None)
+            .unwrap(),
+        b"v2"
+    );
+    assert!(!reader.exists(&format!("{root}/many/key-01")).unwrap());
+    assert_eq!(
+        names(reader.ls(&root, true).unwrap()),
+        [format!("{root}/many"), format!("{root}/ns")]
+    );
+    assert_eq!(
+        reader
+            .find(&format!("{root}/many"), None, false)
+            .unwrap()
+            .len(),
+        19
+    );
+
+    fs.rmdir(&name).unwrap();
+}
+
+#[test]
+fn records_refuse_topics_with_time_retention() {
+    let Some(bootstrap) = bootstrap() else { return };
+    let topic = Topic::create(&bootstrap, 1, 0);
+    let fs = filesystem(&bootstrap);
+
+    assert!(matches!(
+        fs.pipe_file(&format!("{}/records/key", topic.name), b"x"),
+        Err(FsError::NotSupported(_))
+    ));
+    assert_eq!(fs.backend().watermarks(&topic.name, 0).unwrap().high, 0);
+}

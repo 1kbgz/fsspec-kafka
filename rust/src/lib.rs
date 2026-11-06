@@ -10,6 +10,7 @@ mod backend;
 mod fs;
 mod path;
 mod read;
+mod records;
 
 pub use backend::{
     KafkaBackend, Message, MessageOffset, MessageStream, NewMessage, PartitionInfo, PartitionRange,
@@ -18,6 +19,7 @@ pub use backend::{
 pub use fs::{windows, KafkaFs, KafkaFsOptions};
 pub use path::{KafkaPath, MetaFile, Window};
 pub use read::{message_schema, EncodedFile, MessageBatches};
+pub use records::{RecordIndex, RecordLocation, RECORDS_TOPIC_CONFIG};
 
 /// Version of the linked librdkafka.
 pub fn librdkafka_version() -> String {
