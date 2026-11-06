@@ -79,7 +79,7 @@ Module Contents
    .. py:method:: close() -> None
 
 
-.. py:class:: RustKafkaFs(config: dict[str, str], timeout: float = 10.0, window_size: int = 10000, list_format: str = 'arrow', batch_size: int = 1024, allow_admin: bool = False, partitions: int = -1, replication: int = -1, topic_config: dict[str, str] = ...)
+.. py:class:: RustKafkaFs(config: dict[str, str], timeout: float = 10.0, window_size: int = 10000, list_format: str = 'arrow', batch_size: int = 1024, allow_admin: bool = False, partitions: int = -1, replication: int = -1, topic_config: dict[str, str] = ..., value_format: str = ..., value_schema: bytes | None = ..., flatten_value: bool = ...)
 
    .. py:method:: ls(path: str) -> list[dict]
 

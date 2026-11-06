@@ -23,6 +23,7 @@ Functions
    test_filesystem.test_lists_topics_partitions_and_windows
    test_filesystem.test_reads_windows_with_pyarrow
    test_filesystem.test_reads_topic_snapshots_with_pandas
+   test_filesystem.test_reads_json_values
    test_filesystem.test_records_through_open_and_get_mapper
    test_filesystem.test_failed_writes_are_discarded
    test_filesystem.test_topic_admin_needs_allow_admin
@@ -50,6 +51,8 @@ Module Contents
 .. py:function:: test_reads_windows_with_pyarrow(options, topic)
 
 .. py:function:: test_reads_topic_snapshots_with_pandas(options, topic)
+
+.. py:function:: test_reads_json_values(options, topic)
 
 .. py:function:: test_records_through_open_and_get_mapper(options, topic)
 

@@ -21,6 +21,7 @@ Functions
    test_storage_options.test_storage_options_are_librdkafka_properties
    test_storage_options.test_unknown_librdkafka_properties_are_rejected
    test_storage_options.test_invalid_options_are_rejected
+   test_storage_options.test_invalid_value_options_are_rejected
    test_storage_options.test_filesystem_pickles_from_its_options
    test_storage_options.test_invalid_stream_starts_are_rejected
 
@@ -37,6 +38,8 @@ Module Contents
 .. py:function:: test_unknown_librdkafka_properties_are_rejected()
 
 .. py:function:: test_invalid_options_are_rejected()
+
+.. py:function:: test_invalid_value_options_are_rejected(options)
 
 .. py:function:: test_filesystem_pickles_from_its_options()
 

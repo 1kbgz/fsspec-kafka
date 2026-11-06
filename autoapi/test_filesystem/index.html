@@ -190,6 +190,9 @@
     <a href="#test_filesystem.test_reads_topic_snapshots_with_pandas">test_reads_topic_snapshots_with_pandas()</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.test_reads_json_values">test_reads_json_values()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
     <a href="#test_filesystem.test_records_through_open_and_get_mapper">test_records_through_open_and_get_mapper()</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
@@ -257,22 +260,25 @@
 <tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_reads_topic_snapshots_with_pandas" title="test_filesystem.test_reads_topic_snapshots_with_pandas"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_reads_topic_snapshots_with_pandas</span></code></a>(options, topic)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_records_through_open_and_get_mapper" title="test_filesystem.test_records_through_open_and_get_mapper"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_records_through_open_and_get_mapper</span></code></a>(options, topic)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_reads_json_values" title="test_filesystem.test_reads_json_values"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_reads_json_values</span></code></a>(options, topic)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_failed_writes_are_discarded" title="test_filesystem.test_failed_writes_are_discarded"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_failed_writes_are_discarded</span></code></a>(options, topic)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_records_through_open_and_get_mapper" title="test_filesystem.test_records_through_open_and_get_mapper"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_records_through_open_and_get_mapper</span></code></a>(options, topic)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_topic_admin_needs_allow_admin" title="test_filesystem.test_topic_admin_needs_allow_admin"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_topic_admin_needs_allow_admin</span></code></a>(options)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_failed_writes_are_discarded" title="test_filesystem.test_failed_writes_are_discarded"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_failed_writes_are_discarded</span></code></a>(options, topic)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_missing_paths_raise_file_not_found" title="test_filesystem.test_missing_paths_raise_file_not_found"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_missing_paths_raise_file_not_found</span></code></a>(options, topic)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_topic_admin_needs_allow_admin" title="test_filesystem.test_topic_admin_needs_allow_admin"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_topic_admin_needs_allow_admin</span></code></a>(options)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_files_support_raw_io" title="test_filesystem.test_files_support_raw_io"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_files_support_raw_io</span></code></a>(options, topic)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_missing_paths_raise_file_not_found" title="test_filesystem.test_missing_paths_raise_file_not_found"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_missing_paths_raise_file_not_found</span></code></a>(options, topic)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_streams_follow_new_messages_and_resume" title="test_filesystem.test_streams_follow_new_messages_and_resume"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_streams_follow_new_messages_and_resume</span></code></a>(options, topic)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_files_support_raw_io" title="test_filesystem.test_files_support_raw_io"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_files_support_raw_io</span></code></a>(options, topic)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_streams_follow_new_messages_and_resume" title="test_filesystem.test_streams_follow_new_messages_and_resume"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_streams_follow_new_messages_and_resume</span></code></a>(options, topic)</p></td>
 <td><p></p></td>
 </tr>
 </tbody>
@@ -314,6 +320,11 @@
 <dl class="py function">
 <dt class="sig sig-object py" id="test_filesystem.test_reads_topic_snapshots_with_pandas">
 <span class="sig-prename descclassname"><span class="pre">test_filesystem.</span></span><span class="sig-name descname"><span class="pre">test_reads_topic_snapshots_with_pandas</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topic</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#test_filesystem.test_reads_topic_snapshots_with_pandas" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="test_filesystem.test_reads_json_values">
+<span class="sig-prename descclassname"><span class="pre">test_filesystem.</span></span><span class="sig-name descname"><span class="pre">test_reads_json_values</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topic</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#test_filesystem.test_reads_json_values" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py function">
@@ -411,6 +422,9 @@
   </li>
   <li class="fd-toc-item" data-depth="2">
     <a href="#test_filesystem.test_reads_topic_snapshots_with_pandas">test_reads_topic_snapshots_with_pandas()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.test_reads_json_values">test_reads_json_values()</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
     <a href="#test_filesystem.test_records_through_open_and_get_mapper">test_records_through_open_and_get_mapper()</a>

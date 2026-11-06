@@ -17,7 +17,7 @@ Classes
 Module Contents
 ---------------
 
-.. py:class:: KafkaFileSystem(timeout=10.0, window_size=10000, list_format='arrow', batch_size=1024, allow_admin=False, partitions=-1, replication=-1, topic_config=None, **storage_options)
+.. py:class:: KafkaFileSystem(timeout=10.0, window_size=10000, list_format='arrow', batch_size=1024, allow_admin=False, partitions=-1, replication=-1, topic_config=None, value_format='binary', value_schema=None, flatten_value=False, **storage_options)
 
    Bases: :py:obj:`fsspec.AbstractFileSystem`
 
@@ -27,6 +27,10 @@ Module Contents
    Storage options other than the named arguments are librdkafka properties, for example
    ``fsspec.filesystem("kafka", **{"bootstrap.servers": "localhost:9092"})``. They can also
    come from fsspec configuration, such as ``FSSPEC_KAFKA='{"bootstrap.servers": "..."}'``.
+
+   With ``value_format="json"``, values are JSON objects decoded with ``value_schema``, a
+   ``pyarrow.Schema``. Decoded fields are nested in a ``value`` struct column, or placed
+   beside the message columns with ``flatten_value=True``.
 
    Create and configure file-system instance
 

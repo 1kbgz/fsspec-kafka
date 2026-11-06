@@ -227,8 +227,25 @@
 <td><p><code class="docutils literal notranslate"><span class="pre">{}</span></code></p></td>
 <td><p>Configuration for created topics</p></td>
 </tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">value_format</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;binary&quot;</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;json&quot;</span></code> decodes values with <code class="docutils literal notranslate"><span class="pre">value_schema</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">value_schema</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pyarrow.Schema</span></code> of JSON values</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">flatten_value</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
+<td><p>Puts JSON fields beside the message columns</p></td>
+</tr>
 </tbody>
 </table>
+<p>Messages are read with <code class="docutils literal notranslate"><span class="pre">topic</span></code>, <code class="docutils literal notranslate"><span class="pre">partition</span></code>, <code class="docutils literal notranslate"><span class="pre">offset</span></code>, <code class="docutils literal notranslate"><span class="pre">timestamp</span></code>, <code class="docutils literal notranslate"><span class="pre">key</span></code>, <code class="docutils literal notranslate"><span class="pre">headers</span></code>, and <code class="docutils literal notranslate"><span class="pre">value</span></code> columns. With <code class="docutils literal notranslate"><span class="pre">value_format=&quot;json&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">value</span></code> is a struct of the <code class="docutils literal notranslate"><span class="pre">value_schema</span></code> fields, which are null for tombstones. <code class="docutils literal notranslate"><span class="pre">flatten_value=True</span></code> puts the fields beside the other columns instead, which CSV needs because it cannot hold structs:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">schema</span> <span class="o">=</span> <span class="n">pa</span><span class="o">.</span><span class="n">schema</span><span class="p">([(</span><span class="s2">"id"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">int64</span><span class="p">()),</span> <span class="p">(</span><span class="s2">"status"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">string</span><span class="p">())])</span>
+<span class="n">frame</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">"kafka://orders.csv"</span><span class="p">,</span> <span class="n">storage_options</span><span class="o">=</span><span class="p">{</span><span class="o">**</span><span class="n">options</span><span class="p">,</span> <span class="s2">"value_format"</span><span class="p">:</span> <span class="s2">"json"</span><span class="p">,</span> <span class="s2">"value_schema"</span><span class="p">:</span> <span class="n">schema</span><span class="p">,</span> <span class="s2">"flatten_value"</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+</pre></div>
+</div>
 <p>Options can also come from fsspec configuration, for example <code class="docutils literal notranslate"><span class="pre">FSSPEC_KAFKA='{&quot;bootstrap.servers&quot;:</span> <span class="pre">&quot;localhost:9092&quot;}'</span></code>.</p>
 <p>On a compacted topic, <code class="docutils literal notranslate"><span class="pre">topic/records</span></code> holds the latest value of each key, so it works as a key-value store:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span> <span class="o">=</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">get_mapper</span><span class="p">(</span><span class="s2">"kafka://state/records"</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>

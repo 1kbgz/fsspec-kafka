@@ -600,6 +600,10 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    Storage options other than the named arguments are librdkafka properties, for example</span>
 <span class="sd">    ``fsspec.filesystem("kafka", **{"bootstrap.servers": "localhost:9092"})``. They can also</span>
 <span class="sd">    come from fsspec configuration, such as ``FSSPEC_KAFKA='{"bootstrap.servers": "..."}'``.</span>
+
+<span class="sd">    With ``value_format="json"``, values are JSON objects decoded with ``value_schema``, a</span>
+<span class="sd">    ``pyarrow.Schema``. Decoded fields are nested in a ``value`` struct column, or placed</span>
+<span class="sd">    beside the message columns with ``flatten_value=True``.</span>
 <span class="sd">    """</span>
 
     <span class="n">protocol</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"kafka"</span><span class="p">,)</span>
@@ -615,6 +619,9 @@ window.runMermaid = runMermaid;</script>
         <span class="n">partitions</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
         <span class="n">replication</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
         <span class="n">topic_config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">value_format</span><span class="o">=</span><span class="s2">"binary"</span><span class="p">,</span>
+        <span class="n">value_schema</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">flatten_value</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
         <span class="o">**</span><span class="n">storage_options</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">storage_options</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">_FSSPEC_OPTIONS</span> <span class="o">&amp;</span> <span class="n">storage_options</span><span class="o">.</span><span class="n">keys</span><span class="p">()})</span>
@@ -628,6 +635,9 @@ window.runMermaid = runMermaid;</script>
             <span class="n">partitions</span><span class="o">=</span><span class="n">partitions</span><span class="p">,</span>
             <span class="n">replication</span><span class="o">=</span><span class="n">replication</span><span class="p">,</span>
             <span class="n">topic_config</span><span class="o">=</span><span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">_property</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="p">(</span><span class="n">topic_config</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
+            <span class="n">value_format</span><span class="o">=</span><span class="n">value_format</span><span class="p">,</span>
+            <span class="n">value_schema</span><span class="o">=</span><span class="kc">None</span> <span class="k">if</span> <span class="n">value_schema</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">_schema_bytes</span><span class="p">(</span><span class="n">value_schema</span><span class="p">),</span>
+            <span class="n">flatten_value</span><span class="o">=</span><span class="n">flatten_value</span><span class="p">,</span>
         <span class="p">)</span>
 
 <div class="viewcode-block" id="KafkaFileSystem.ls">
@@ -705,6 +715,14 @@ window.runMermaid = runMermaid;</script>
         <span class="k">return</span> <span class="n">KafkaStream</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rust</span><span class="o">.</span><span class="n">stream</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_strip_protocol</span><span class="p">(</span><span class="n">path</span><span class="p">),</span> <span class="n">_stream_start</span><span class="p">(</span><span class="n">start</span><span class="p">)))</span></div>
 </div>
 
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_schema_bytes</span><span class="p">(</span><span class="n">schema</span><span class="p">):</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
+
+    <span class="n">sink</span> <span class="o">=</span> <span class="n">pa</span><span class="o">.</span><span class="n">BufferOutputStream</span><span class="p">()</span>
+    <span class="n">pa</span><span class="o">.</span><span class="n">ipc</span><span class="o">.</span><span class="n">new_stream</span><span class="p">(</span><span class="n">sink</span><span class="p">,</span> <span class="n">schema</span><span class="p">)</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">sink</span><span class="o">.</span><span class="n">getvalue</span><span class="p">()</span><span class="o">.</span><span class="n">to_pybytes</span><span class="p">()</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_stream_start</span><span class="p">(</span><span class="n">start</span><span class="p">):</span>
