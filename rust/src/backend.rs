@@ -7,6 +7,7 @@ use rdkafka::client::DefaultClientContext;
 use rdkafka::config::ClientConfig;
 use rdkafka::consumer::{BaseConsumer, Consumer};
 use rdkafka::error::KafkaError;
+use rdkafka::message::{Headers, Message as _};
 use rdkafka::topic_partition_list::{Offset, TopicPartitionList};
 use rdkafka::types::RDKafkaRespErr;
 
@@ -32,6 +33,26 @@ pub struct Watermarks {
     pub high: i64,
 }
 
+/// Offsets `start..end` of one partition to read.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PartitionRange {
+    pub partition: i32,
+    pub start: i64,
+    pub end: i64,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct Message {
+    pub partition: i32,
+    pub offset: i64,
+    pub timestamp_ms: Option<i64>,
+    pub key: Option<Vec<u8>>,
+    pub headers: Vec<(String, Option<Vec<u8>>)>,
+    pub value: Option<Vec<u8>>,
+}
+
+pub type MessageStream = Box<dyn Iterator<Item = FsResult<Message>> + Send>;
+
 /// Cluster operations used by `KafkaFs`.
 pub trait KafkaBackend: Send + Sync {
     fn list_topics(&self) -> FsResult<Vec<TopicInfo>>;
@@ -51,10 +72,16 @@ pub trait KafkaBackend: Send + Sync {
     ) -> FsResult<Option<i64>>;
 
     fn topic_config(&self, topic: &str) -> FsResult<BTreeMap<String, String>>;
+
+    /// Messages in `ranges`. Each partition stops at its range end or at the end of the
+    /// partition, whichever comes first, so offsets missing from compacted or
+    /// transactional partitions do not block the read.
+    fn read(&self, topic: &str, ranges: Vec<PartitionRange>) -> FsResult<MessageStream>;
 }
 
 /// `KafkaBackend` over librdkafka. Reads never join a consumer group or commit offsets.
 pub struct RdKafkaBackend {
+    config: ClientConfig,
     consumer: BaseConsumer,
     admin: AdminClient<DefaultClientContext>,
     timeout: Duration,
@@ -73,6 +100,7 @@ impl RdKafkaBackend {
         Ok(Self {
             consumer: client_config.create().map_err(kafka_error)?,
             admin: client_config.create().map_err(kafka_error)?,
+            config: client_config,
             timeout,
         })
     }
@@ -145,6 +173,10 @@ impl KafkaBackend for RdKafkaBackend {
         })
     }
 
+    fn read(&self, topic: &str, ranges: Vec<PartitionRange>) -> FsResult<MessageStream> {
+        self.read_messages(topic, ranges)
+    }
+
     fn topic_config(&self, topic: &str) -> FsResult<BTreeMap<String, String>> {
         let options = AdminOptions::new().request_timeout(Some(self.timeout));
         let results = futures_executor::block_on(
@@ -167,6 +199,117 @@ impl KafkaBackend for RdKafkaBackend {
             .into_iter()
             .filter_map(|entry| entry.value.map(|value| (entry.name, value)))
             .collect())
+    }
+}
+
+impl RdKafkaBackend {
+    fn read_messages(&self, topic: &str, ranges: Vec<PartitionRange>) -> FsResult<MessageStream> {
+        let ranges = ranges
+            .into_iter()
+            .filter(|range| range.start < range.end)
+            .collect::<Vec<_>>();
+        if ranges.is_empty() {
+            return Ok(Box::new(std::iter::empty()));
+        }
+        let mut config = self.config.clone();
+        // librdkafka requires a group id to assign partitions. Assignment never joins the
+        // group, and offsets are never committed, so the group is not created on the broker.
+        if config.get("group.id").is_none() {
+            config.set("group.id", "fsspec-kafka");
+        }
+        let consumer: BaseConsumer = config
+            .set("enable.partition.eof", "true")
+            .set("auto.offset.reset", "earliest")
+            .create()
+            .map_err(kafka_error)?;
+        let mut assignment = TopicPartitionList::new();
+        for range in &ranges {
+            assignment
+                .add_partition_offset(topic, range.partition, Offset::Offset(range.start))
+                .map_err(kafka_error)?;
+        }
+        consumer.assign(&assignment).map_err(kafka_error)?;
+        Ok(Box::new(RdKafkaMessages {
+            consumer,
+            topic: topic.to_string(),
+            ends: ranges.iter().map(|r| (r.partition, r.end)).collect(),
+            timeout: self.timeout,
+        }))
+    }
+}
+
+struct RdKafkaMessages {
+    consumer: BaseConsumer,
+    topic: String,
+    /// Exclusive end offset of each partition still being read.
+    ends: HashMap<i32, i64>,
+    timeout: Duration,
+}
+
+impl RdKafkaMessages {
+    fn finish_partition(&mut self, partition: i32) {
+        self.ends.remove(&partition);
+        let mut paused = TopicPartitionList::new();
+        paused.add_partition(&self.topic, partition);
+        let _ = self.consumer.pause(&paused);
+    }
+}
+
+impl Iterator for RdKafkaMessages {
+    type Item = FsResult<Message>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while !self.ends.is_empty() {
+            let message = match self.consumer.poll(self.timeout) {
+                None => {
+                    self.ends.clear();
+                    return Some(Err(FsError::Other(format!(
+                        "timed out reading {} after {:?}",
+                        self.topic, self.timeout
+                    ))));
+                }
+                Some(Err(KafkaError::PartitionEOF(partition))) => {
+                    self.finish_partition(partition);
+                    continue;
+                }
+                Some(Err(error)) => {
+                    self.ends.clear();
+                    return Some(Err(kafka_error(error)));
+                }
+                Some(Ok(message)) => owned_message(&message),
+            };
+            let Some(&end) = self.ends.get(&message.partition) else {
+                continue;
+            };
+            if message.offset >= end {
+                self.finish_partition(message.partition);
+                continue;
+            }
+            if message.offset + 1 >= end {
+                self.finish_partition(message.partition);
+            }
+            return Some(Ok(message));
+        }
+        None
+    }
+}
+
+fn owned_message(message: &rdkafka::message::BorrowedMessage<'_>) -> Message {
+    Message {
+        partition: message.partition(),
+        offset: message.offset(),
+        timestamp_ms: message.timestamp().to_millis(),
+        key: message.key().map(<[u8]>::to_vec),
+        headers: message
+            .headers()
+            .map(|headers| {
+                headers
+                    .iter()
+                    .map(|header| (header.key.to_string(), header.value.map(<[u8]>::to_vec)))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        value: message.payload().map(<[u8]>::to_vec),
     }
 }
 

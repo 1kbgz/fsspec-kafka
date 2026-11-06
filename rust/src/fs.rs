@@ -5,8 +5,9 @@ use fsspec_data::DataFormat;
 use fsspec_rs::{FileInfo, FileSystem, FsError, FsFile, FsResult, OpenMode, OpenOptions};
 use serde_json::json;
 
-use crate::backend::{KafkaBackend, TopicInfo, Watermarks};
+use crate::backend::{KafkaBackend, PartitionRange, TopicInfo, Watermarks};
 use crate::path::{KafkaPath, MetaFile, Window};
+use crate::read::{EncodedFile, MessageBatches};
 
 const PROTOCOLS: &[&str] = &["kafka"];
 
@@ -16,6 +17,8 @@ pub struct KafkaFsOptions {
     pub window_size: i64,
     /// Extension used when listing window files. Any supported extension can be opened.
     pub list_format: DataFormat,
+    /// Messages per Arrow record batch when reading.
+    pub batch_size: usize,
 }
 
 impl Default for KafkaFsOptions {
@@ -23,6 +26,7 @@ impl Default for KafkaFsOptions {
         Self {
             window_size: 10_000,
             list_format: DataFormat::Arrow,
+            batch_size: 1024,
         }
     }
 }
@@ -35,9 +39,9 @@ pub struct KafkaFs<B> {
 
 impl<B: KafkaBackend> KafkaFs<B> {
     pub fn new(backend: B, options: KafkaFsOptions) -> FsResult<Self> {
-        if options.window_size <= 0 {
+        if options.window_size <= 0 || options.batch_size == 0 {
             return Err(FsError::InvalidArgument(
-                "window_size must be positive".to_string(),
+                "window_size and batch_size must be positive".to_string(),
             ));
         }
         Ok(Self {
@@ -95,6 +99,76 @@ impl<B: KafkaBackend> KafkaFs<B> {
                 .collect::<FsResult<Vec<_>>>()?),
         };
         serde_json::to_vec_pretty(&value).map_err(|e| FsError::Other(e.to_string()))
+    }
+
+    /// Opens a message file. Offsets are bounded by the watermarks read here, so messages
+    /// produced after opening are not included.
+    fn open_data(&self, path: KafkaPath) -> FsResult<Box<dyn FsFile>> {
+        let info = self.info_kafka(path.clone())?;
+        let (topic, format, ranges) = match path {
+            KafkaPath::Window {
+                topic,
+                partition,
+                window,
+                format,
+            } => {
+                let marks = self.backend.watermarks(&topic, partition)?;
+                let end = window
+                    .end
+                    .map_or(marks.high, |end| (end + 1).min(marks.high));
+                let range = PartitionRange {
+                    partition,
+                    start: window.start.max(marks.low),
+                    end,
+                };
+                (topic, format, vec![range])
+            }
+            KafkaPath::PartitionRead {
+                topic,
+                partition,
+                format,
+                start,
+                limit,
+            } => {
+                let marks = self.backend.watermarks(&topic, partition)?;
+                let start = start.unwrap_or(marks.low).max(marks.low);
+                let end = limit.map_or(marks.high, |limit| {
+                    start
+                        .saturating_add(i64::try_from(limit).unwrap_or(i64::MAX))
+                        .min(marks.high)
+                });
+                (
+                    topic,
+                    format,
+                    vec![PartitionRange {
+                        partition,
+                        start,
+                        end,
+                    }],
+                )
+            }
+            KafkaPath::TopicSnapshot { topic, format } => {
+                let ranges = self
+                    .backend
+                    .topic(&topic)?
+                    .partitions
+                    .iter()
+                    .map(|p| {
+                        let marks = self.backend.watermarks(&topic, p.id)?;
+                        Ok(PartitionRange {
+                            partition: p.id,
+                            start: marks.low,
+                            end: marks.high,
+                        })
+                    })
+                    .collect::<FsResult<Vec<_>>>()?;
+                (topic, format, ranges)
+            }
+            path => return Err(FsError::IsADirectory(path.to_path())),
+        };
+        let messages = self.backend.read(&topic, ranges)?;
+        let batches = MessageBatches::new(&topic, messages, format, self.options.batch_size);
+        Ok(Box::new(EncodedFile::new(batches, format, info)?))
     }
 
     fn ls_kafka(&self, path: KafkaPath) -> FsResult<Vec<FileInfo>> {
@@ -216,9 +290,7 @@ impl<B: KafkaBackend> FileSystem for KafkaFs<B> {
             | KafkaPath::Topic(_)
             | KafkaPath::MetaDir(_)
             | KafkaPath::Partition(..) => Err(FsError::IsADirectory(path.to_string())),
-            _ => Err(FsError::NotSupported(format!(
-                "reading Kafka messages is not supported yet: {path}"
-            ))),
+            path => self.open_data(path),
         }
     }
 
@@ -348,8 +420,13 @@ impl FsFile for MemoryFile {
 mod tests {
     use std::collections::{BTreeMap, HashMap};
 
+    use arrow::array::{Array, AsArray, RecordBatch};
+    use arrow::datatypes::Int64Type;
+    use arrow::ipc::reader::StreamReader;
+
     use super::*;
-    use crate::backend::PartitionInfo;
+    use crate::backend::{Message, MessageStream, PartitionInfo};
+    use crate::read::message_schema;
 
     struct MockBackend {
         topics: Vec<TopicInfo>,
@@ -410,6 +487,27 @@ mod tests {
                 "604800000".into(),
             )]))
         }
+
+        /// Every offset below the high watermark holds a message.
+        fn read(&self, topic: &str, ranges: Vec<PartitionRange>) -> FsResult<MessageStream> {
+            let messages = ranges
+                .into_iter()
+                .flat_map(|range| {
+                    (range.start..range.end).map(move |offset| {
+                        Ok(Message {
+                            partition: range.partition,
+                            offset,
+                            timestamp_ms: Some(1_000 + offset),
+                            key: Some(format!("k{offset}").into_bytes()),
+                            headers: vec![("h".into(), Some(b"x".to_vec()))],
+                            value: Some(format!("v{offset}").into_bytes()),
+                        })
+                    })
+                })
+                .collect::<Vec<_>>();
+            assert!(self.topics.iter().any(|t| t.name == topic));
+            Ok(Box::new(messages.into_iter()))
+        }
     }
 
     fn fs() -> KafkaFs<MockBackend> {
@@ -418,6 +516,7 @@ mod tests {
             KafkaFsOptions {
                 window_size: 10,
                 list_format: DataFormat::Arrow,
+                batch_size: 4,
             },
         )
         .unwrap()
@@ -537,13 +636,142 @@ mod tests {
         );
     }
 
+    fn read_bytes(fs: &KafkaFs<MockBackend>, path: &str) -> Vec<u8> {
+        let mut data = Vec::new();
+        fs.open(path, OpenMode::Read, None)
+            .unwrap()
+            .read_to_end(&mut data)
+            .unwrap();
+        data
+    }
+
+    fn read_arrow(fs: &KafkaFs<MockBackend>, path: &str) -> Vec<RecordBatch> {
+        StreamReader::try_new(read_bytes(fs, path).as_slice(), None)
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
+    }
+
+    fn offsets(batches: &[RecordBatch]) -> Vec<i64> {
+        batches
+            .iter()
+            .flat_map(|batch| {
+                batch
+                    .column_by_name("offset")
+                    .unwrap()
+                    .as_primitive::<Int64Type>()
+                    .values()
+                    .to_vec()
+            })
+            .collect()
+    }
+
     #[test]
-    fn data_and_writes_are_not_supported_yet() {
+    fn reads_closed_and_head_windows() {
         let fs = fs();
-        assert!(matches!(
-            fs.open("orders/0/0-9.arrow", OpenMode::Read, None),
-            Err(FsError::NotSupported(_))
-        ));
+        let batches = read_arrow(&fs, "orders/0/10-19.arrow");
+        assert_eq!(offsets(&batches), (10..20).collect::<Vec<_>>());
+        assert_eq!(
+            batches
+                .iter()
+                .map(RecordBatch::num_rows)
+                .collect::<Vec<_>>(),
+            [4, 4, 2]
+        );
+        assert_eq!(batches[0].schema(), message_schema(DataFormat::Arrow));
+        assert_eq!(
+            offsets(&read_arrow(&fs, "orders/0/20-.arrow")),
+            [20, 21, 22, 23, 24]
+        );
+    }
+
+    #[test]
+    fn reads_message_fields() {
+        let batch = read_arrow(&fs(), "orders/0/0-9.ipc").remove(0);
+        assert_eq!(
+            batch
+                .column_by_name("topic")
+                .unwrap()
+                .as_string::<i32>()
+                .value(0),
+            "orders"
+        );
+        assert_eq!(
+            batch
+                .column_by_name("key")
+                .unwrap()
+                .as_binary::<i32>()
+                .value(1),
+            b"k1"
+        );
+        assert_eq!(
+            batch
+                .column_by_name("value")
+                .unwrap()
+                .as_binary::<i32>()
+                .value(1),
+            b"v1"
+        );
+        let headers = batch.column_by_name("headers").unwrap().as_map();
+        assert_eq!(headers.value(0).len(), 1);
+        assert_eq!(headers.keys().as_string::<i32>().value(0), "h");
+    }
+
+    #[test]
+    fn bounded_partition_reads_clamp_to_watermarks() {
+        let fs = fs();
+        assert_eq!(
+            offsets(&read_arrow(&fs, "orders/0.arrow?start=22")),
+            [22, 23, 24]
+        );
+        assert_eq!(
+            offsets(&read_arrow(&fs, "orders/0.arrow?start=5&limit=3")),
+            [5, 6, 7]
+        );
+        assert_eq!(offsets(&read_arrow(&fs, "orders/0.arrow?limit=2")), [0, 1]);
+        assert!(read_arrow(&fs, "orders/0.arrow?start=99").is_empty());
+        assert!(read_arrow(&fs, "orders/1.arrow").is_empty());
+    }
+
+    #[test]
+    fn topic_snapshot_reads_every_partition() {
+        let batches = read_arrow(&fs(), "orders.arrow");
+        assert_eq!(offsets(&batches), (0..25).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn csv_omits_headers_and_jsonl_keeps_them() {
+        let fs = fs();
+        let csv = String::from_utf8(read_bytes(&fs, "orders/0.csv?limit=1")).unwrap();
+        assert_eq!(
+            csv.lines().next().unwrap(),
+            "topic,partition,offset,timestamp,key,value"
+        );
+        let jsonl = String::from_utf8(read_bytes(&fs, "orders/0.jsonl?limit=1")).unwrap();
+        let row: serde_json::Value = serde_json::from_str(jsonl.trim()).unwrap();
+        assert_eq!(row["offset"], 0);
+        assert!(row["headers"].is_object());
+    }
+
+    #[test]
+    fn file_size_is_known_after_reading() {
+        let fs = fs();
+        let mut file = fs
+            .open("orders/0/0-9.parquet", OpenMode::Read, None)
+            .unwrap();
+        assert_eq!(file.size().unwrap(), None);
+        let end = file.seek(SeekFrom::End(0)).unwrap();
+        assert_eq!(file.size().unwrap(), Some(end));
+        assert_eq!(file.info().unwrap().extra["size_known"], "true");
+        file.seek(SeekFrom::Start(0)).unwrap();
+        let mut magic = [0; 4];
+        file.read_exact(&mut magic).unwrap();
+        assert_eq!(&magic, b"PAR1");
+    }
+
+    #[test]
+    fn writes_and_directories_cannot_be_opened() {
+        let fs = fs();
         assert!(matches!(
             fs.open("orders/0.jsonl", OpenMode::Write, None),
             Err(FsError::NotSupported(_))
@@ -551,6 +779,10 @@ mod tests {
         assert!(matches!(
             fs.open("orders/0", OpenMode::Read, None),
             Err(FsError::IsADirectory(_))
+        ));
+        assert!(matches!(
+            fs.open("orders/0/30-.arrow", OpenMode::Read, None),
+            Err(FsError::NotFound(_))
         ));
     }
 }
