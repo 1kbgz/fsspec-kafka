@@ -10,7 +10,7 @@ if not BOOTSTRAP:
     pytest.skip("KAFKA_TEST_BOOTSTRAP not set", allow_module_level=True)
 pytest.importorskip("fsspec_rs.testing.records")
 
-from fsspec_rs.testing.records import *  # ty: ignore[unresolved-import]
+from fsspec_rs.testing.records import *  # ty: ignore
 
 
 @pytest.fixture
