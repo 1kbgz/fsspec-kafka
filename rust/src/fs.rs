@@ -453,7 +453,7 @@ mod tests {
     use arrow::ipc::reader::StreamReader;
 
     use super::*;
-    use crate::backend::{Message, MessageStream, PartitionInfo};
+    use crate::backend::{Message, MessageOffset, MessageStream, NewMessage, PartitionInfo};
     use crate::read::message_schema;
 
     struct MockBackend {
@@ -522,6 +522,10 @@ mod tests {
                 "retention.ms".into(),
                 "604800000".into(),
             )]))
+        }
+
+        fn produce(&self, topic: &str, _: Vec<NewMessage>) -> FsResult<Vec<MessageOffset>> {
+            Err(FsError::NotSupported(topic.into()))
         }
 
         /// Every offset below the high watermark holds a message.

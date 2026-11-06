@@ -22,12 +22,12 @@ futures-executor = "0.3"
 serde_json = "1"
 
 [target.'cfg(not(windows))'.dependencies]
-rdkafka = { version = "0.39.0", default-features = false, features = ["cmake-build", "curl-static", "ssl-vendored", "gssapi-vendored", "zstd", "libz"] }
+rdkafka = { version = "0.39.0", default-features = false, features = ["cmake-build", "curl-static", "ssl-vendored", "gssapi-vendored", "zstd", "libz", "naive-runtime"] }
 
 # librdkafka's CMake build always compiles OAUTHBEARER OIDC, which needs curl.
 # librdkafka always builds Windows SSPI GSSAPI; Cyrus SASL is not used there.
 [target.'cfg(windows)'.dependencies]
-rdkafka = { version = "0.39.0", default-features = false, features = ["cmake-build", "curl-static", "ssl-vendored", "zstd", "libz"] }
+rdkafka = { version = "0.39.0", default-features = false, features = ["cmake-build", "curl-static", "ssl-vendored", "zstd", "libz", "naive-runtime"] }
 
 [profile.test.junit]
 path = "junit.xml"

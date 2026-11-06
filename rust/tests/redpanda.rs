@@ -10,7 +10,9 @@ use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use fsspec_data::DataFormat;
-use fsspec_kafka::{KafkaBackend, KafkaFs, KafkaFsOptions, RdKafkaBackend};
+use fsspec_kafka::{
+    KafkaBackend, KafkaFs, KafkaFsOptions, MessageOffset, NewMessage, RdKafkaBackend,
+};
 use fsspec_rs::{FileSystem, FsError, OpenMode};
 use rdkafka::admin::{AdminClient, AdminOptions, NewTopic, TopicReplication};
 use rdkafka::client::DefaultClientContext;
@@ -483,4 +485,94 @@ fn transactional_partitions_skip_markers_and_aborted_messages() {
     let high = fs.backend().watermarks(&topic.name, 0).unwrap().high;
     assert!(offsets[1] - offsets[0] > 1, "{offsets:?}");
     assert!(offsets[1] + 1 < high, "{offsets:?} high={high}");
+}
+
+fn new_message(key: Option<&str>, value: Option<&str>) -> NewMessage {
+    NewMessage {
+        key: key.map(|key| key.as_bytes().to_vec()),
+        value: value.map(|value| value.as_bytes().to_vec()),
+    }
+}
+
+#[test]
+fn produces_messages_and_tombstones_in_order() {
+    let Some(bootstrap) = bootstrap() else { return };
+    let topic = Topic::create(&bootstrap, 1, 0);
+    let fs = filesystem(&bootstrap);
+
+    let offsets = fs
+        .backend()
+        .produce(
+            &topic.name,
+            vec![
+                new_message(Some("a"), Some("1")),
+                new_message(Some("a"), None),
+                new_message(None, Some("2")),
+            ],
+        )
+        .unwrap();
+    assert_eq!(
+        offsets,
+        (0..3)
+            .map(|offset| MessageOffset {
+                partition: 0,
+                offset
+            })
+            .collect::<Vec<_>>()
+    );
+
+    let batch = read_parquet(&fs, &format!("{}/0.parquet", topic.name)).remove(0);
+    let keys = batch.column_by_name("key").unwrap().as_binary::<i32>();
+    let values = batch.column_by_name("value").unwrap().as_binary::<i32>();
+    assert_eq!(keys.value(0), b"a");
+    assert_eq!(values.value(0), b"1");
+    assert!(values.is_null(1));
+    assert!(keys.is_null(2));
+    assert_eq!(values.value(2), b"2");
+}
+
+#[test]
+fn produces_more_messages_than_the_local_queue_holds() {
+    let Some(bootstrap) = bootstrap() else { return };
+    let topic = Topic::create(&bootstrap, 3, 0);
+    let config = HashMap::from([
+        ("bootstrap.servers".to_string(), bootstrap.clone()),
+        ("queue.buffering.max.messages".to_string(), "10".to_string()),
+    ]);
+    let backend = RdKafkaBackend::new(&config, TIMEOUT).unwrap();
+
+    let messages = (0..100)
+        .map(|index| new_message(Some(&format!("key-{}", index % 7)), Some("x")))
+        .collect::<Vec<_>>();
+    let offsets = backend.produce(&topic.name, messages).unwrap();
+
+    assert_eq!(offsets.len(), 100);
+    let mut partitions_by_key = HashMap::new();
+    for (index, offset) in offsets.iter().enumerate() {
+        let partition = *partitions_by_key
+            .entry(index % 7)
+            .or_insert(offset.partition);
+        assert_eq!(offset.partition, partition, "keys stay on one partition");
+    }
+    let total: i64 = (0..3)
+        .map(|partition| backend.watermarks(&topic.name, partition).unwrap().high)
+        .sum();
+    assert_eq!(total, 100);
+}
+
+#[test]
+fn producing_to_a_missing_topic_fails_without_creating_it() {
+    let Some(bootstrap) = bootstrap() else { return };
+    let fs = filesystem(&bootstrap);
+    let name = "fsspec-kafka-test-missing-produce";
+
+    assert!(matches!(
+        fs.backend()
+            .produce(name, vec![new_message(None, Some("x"))]),
+        Err(FsError::NotFound(_))
+    ));
+    assert!(matches!(
+        fs.backend().topic(name),
+        Err(FsError::NotFound(_))
+    ));
 }

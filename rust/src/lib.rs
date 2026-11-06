@@ -12,8 +12,8 @@ mod path;
 mod read;
 
 pub use backend::{
-    KafkaBackend, Message, MessageStream, PartitionInfo, PartitionRange, RdKafkaBackend, TopicInfo,
-    Watermarks,
+    KafkaBackend, Message, MessageOffset, MessageStream, NewMessage, PartitionInfo, PartitionRange,
+    RdKafkaBackend, TopicInfo, Watermarks,
 };
 pub use fs::{windows, KafkaFs, KafkaFsOptions};
 pub use path::{KafkaPath, MetaFile, Window};
