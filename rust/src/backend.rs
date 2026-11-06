@@ -3,7 +3,9 @@ use std::sync::OnceLock;
 use std::time::Duration;
 
 use fsspec_rs::{FsError, FsResult};
-use rdkafka::admin::{AdminClient, AdminOptions, ResourceSpecifier};
+use rdkafka::admin::{
+    AdminClient, AdminOptions, NewTopic, ResourceSpecifier, TopicReplication, TopicResult,
+};
 use rdkafka::client::DefaultClientContext;
 use rdkafka::config::ClientConfig;
 use rdkafka::consumer::{BaseConsumer, Consumer};
@@ -99,6 +101,20 @@ pub trait KafkaBackend: Send + Sync {
     /// broker has acknowledged every one. Fails with `FsError::NotFound` when the topic does
     /// not exist; topics are never created by producing.
     fn produce(&self, topic: &str, messages: Vec<NewMessage>) -> FsResult<Vec<MessageOffset>>;
+
+    /// Creates a topic. `-1` partitions or replication uses the broker default. Fails with
+    /// `FsError::AlreadyExists` when the topic exists.
+    fn create_topic(
+        &self,
+        topic: &str,
+        partitions: i32,
+        replication: i32,
+        config: &BTreeMap<String, String>,
+    ) -> FsResult<()>;
+
+    /// Deletes a topic and all of its messages. Fails with `FsError::NotFound` when the topic
+    /// does not exist.
+    fn delete_topic(&self, topic: &str) -> FsResult<()>;
 }
 
 /// `KafkaBackend` over librdkafka. Reads never join a consumer group or commit offsets.
@@ -237,6 +253,32 @@ impl KafkaBackend for RdKafkaBackend {
         Ok(offsets)
     }
 
+    fn create_topic(
+        &self,
+        topic: &str,
+        partitions: i32,
+        replication: i32,
+        config: &BTreeMap<String, String>,
+    ) -> FsResult<()> {
+        let new_topic = config.iter().fold(
+            NewTopic::new(topic, partitions, TopicReplication::Fixed(replication)),
+            |new_topic, (key, value)| new_topic.set(key, value),
+        );
+        let results = futures_executor::block_on(
+            self.admin
+                .create_topics(&[new_topic], &self.admin_options()),
+        )
+        .map_err(kafka_error)?;
+        topic_result(results)
+    }
+
+    fn delete_topic(&self, topic: &str) -> FsResult<()> {
+        let results =
+            futures_executor::block_on(self.admin.delete_topics(&[topic], &self.admin_options()))
+                .map_err(kafka_error)?;
+        topic_result(results)
+    }
+
     fn topic_config(&self, topic: &str) -> FsResult<BTreeMap<String, String>> {
         let options = AdminOptions::new().request_timeout(Some(self.timeout));
         let results = futures_executor::block_on(
@@ -261,6 +303,13 @@ impl KafkaBackend for RdKafkaBackend {
 }
 
 impl RdKafkaBackend {
+    /// Waits for topic changes to reach every broker before returning.
+    fn admin_options(&self) -> AdminOptions {
+        AdminOptions::new()
+            .request_timeout(Some(self.timeout))
+            .operation_timeout(Some(self.timeout))
+    }
+
     fn producer(&self) -> FsResult<&FutureProducer<DefaultClientContext, NaiveRuntime>> {
         if let Some(producer) = self.producer.get() {
             return Ok(producer);
@@ -401,6 +450,19 @@ fn topic_info(topic: &rdkafka::metadata::MetadataTopic) -> TopicInfo {
         name: topic.name().to_string(),
         partitions,
     }
+}
+
+fn topic_result(results: Vec<TopicResult>) -> FsResult<()> {
+    for result in results {
+        if let Err((topic, code)) = result {
+            return Err(match code {
+                RDKafkaErrorCode::TopicAlreadyExists => FsError::AlreadyExists(topic),
+                RDKafkaErrorCode::UnknownTopicOrPartition => FsError::NotFound(topic),
+                code => FsError::Other(format!("topic {topic}: {code}")),
+            });
+        }
+    }
+    Ok(())
 }
 
 fn delivered(delivery: DeliveryFuture) -> FsResult<MessageOffset> {

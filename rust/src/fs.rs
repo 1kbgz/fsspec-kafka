@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 use std::sync::Arc;
 
@@ -19,6 +20,14 @@ pub struct KafkaFsOptions {
     pub list_format: DataFormat,
     /// Messages per Arrow record batch when reading.
     pub batch_size: usize,
+    /// Allows `mkdir` to create topics and `rmdir` to delete them.
+    pub allow_admin: bool,
+    /// Partition count for topics created by `mkdir`. `-1` uses the broker default.
+    pub partitions: i32,
+    /// Replication factor for topics created by `mkdir`. `-1` uses the broker default.
+    pub replication: i32,
+    /// Topic configuration for topics created by `mkdir`, such as `retention.ms`.
+    pub topic_config: BTreeMap<String, String>,
 }
 
 impl Default for KafkaFsOptions {
@@ -27,6 +36,10 @@ impl Default for KafkaFsOptions {
             window_size: 10_000,
             list_format: DataFormat::Arrow,
             batch_size: 1024,
+            allow_admin: false,
+            partitions: -1,
+            replication: -1,
+            topic_config: BTreeMap::new(),
         }
     }
 }
@@ -65,6 +78,23 @@ impl<B: KafkaBackend> KafkaFs<B> {
             }
         }
         Ok(parsed)
+    }
+
+    /// The topic named by a directory path for `mkdir` or `rmdir`. A missing topic named
+    /// like a file, such as `events.csv`, parses as a snapshot, so it is mapped back here.
+    fn admin_topic(&self, path: &str) -> FsResult<String> {
+        if !self.options.allow_admin {
+            return Err(FsError::PermissionDenied(format!(
+                "creating and deleting topics requires allow_admin: {path}"
+            )));
+        }
+        match KafkaPath::parse(path)? {
+            KafkaPath::Topic(topic) => Ok(topic),
+            KafkaPath::TopicSnapshot { .. } => Ok(self.strip_protocol(path)),
+            _ => Err(FsError::NotSupported(format!(
+                "only topics can be created or deleted: {path}"
+            ))),
+        }
     }
 
     fn partition(&self, topic: &str, partition: i32) -> FsResult<TopicInfo> {
@@ -334,16 +364,22 @@ impl<B: KafkaBackend> FileSystem for KafkaFs<B> {
         )))
     }
 
+    /// Creates a topic with the configured partitions, replication, and topic config.
+    /// Topics have no parent directories, so `create_parents` has no effect.
     fn mkdir(&self, path: &str, _create_parents: bool) -> FsResult<()> {
-        Err(FsError::NotSupported(format!(
-            "creating topics is not supported yet: {path}"
-        )))
+        let topic = self.admin_topic(path)?;
+        self.backend.create_topic(
+            &topic,
+            self.options.partitions,
+            self.options.replication,
+            &self.options.topic_config,
+        )
     }
 
+    /// Deletes a topic and all of its messages.
     fn rmdir(&self, path: &str) -> FsResult<()> {
-        Err(FsError::NotSupported(format!(
-            "deleting topics is not supported yet: {path}"
-        )))
+        let topic = self.admin_topic(path)?;
+        self.backend.delete_topic(&topic)
     }
 }
 
@@ -446,7 +482,8 @@ impl FsFile for MemoryFile {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{BTreeMap, HashMap};
+    use std::collections::HashMap;
+    use std::sync::Mutex;
 
     use arrow::array::{Array, AsArray, RecordBatch};
     use arrow::datatypes::Int64Type;
@@ -456,9 +493,13 @@ mod tests {
     use crate::backend::{Message, MessageOffset, MessageStream, NewMessage, PartitionInfo};
     use crate::read::message_schema;
 
+    type CreatedTopic = (String, i32, i32, BTreeMap<String, String>);
+
     struct MockBackend {
         topics: Vec<TopicInfo>,
         marks: HashMap<(String, i32), Watermarks>,
+        created: Mutex<Vec<CreatedTopic>>,
+        deleted: Mutex<Vec<String>>,
     }
 
     impl MockBackend {
@@ -484,7 +525,12 @@ mod tests {
                 (("orders".into(), 1), Watermarks { low: 7, high: 7 }),
                 (("events.csv".into(), 0), Watermarks { low: 0, high: 20 }),
             ]);
-            Self { topics, marks }
+            Self {
+                topics,
+                marks,
+                created: Mutex::default(),
+                deleted: Mutex::default(),
+            }
         }
     }
 
@@ -528,6 +574,27 @@ mod tests {
             Err(FsError::NotSupported(topic.into()))
         }
 
+        fn create_topic(
+            &self,
+            topic: &str,
+            partitions: i32,
+            replication: i32,
+            config: &BTreeMap<String, String>,
+        ) -> FsResult<()> {
+            self.created.lock().unwrap().push((
+                topic.into(),
+                partitions,
+                replication,
+                config.clone(),
+            ));
+            Ok(())
+        }
+
+        fn delete_topic(&self, topic: &str) -> FsResult<()> {
+            self.deleted.lock().unwrap().push(topic.into());
+            Ok(())
+        }
+
         /// Every offset below the high watermark holds a message.
         fn read(&self, topic: &str, ranges: Vec<PartitionRange>) -> FsResult<MessageStream> {
             let messages = ranges
@@ -557,6 +624,7 @@ mod tests {
                 window_size: 10,
                 list_format: DataFormat::Arrow,
                 batch_size: 4,
+                ..KafkaFsOptions::default()
             },
         )
         .unwrap()
@@ -832,6 +900,53 @@ mod tests {
         let mut magic = [0; 4];
         file.read_exact(&mut magic).unwrap();
         assert_eq!(&magic, b"PAR1");
+    }
+
+    #[test]
+    fn topic_admin_requires_allow_admin() {
+        let fs = fs();
+        assert!(matches!(
+            fs.mkdir("new", false),
+            Err(FsError::PermissionDenied(_))
+        ));
+        assert!(matches!(
+            fs.rmdir("orders"),
+            Err(FsError::PermissionDenied(_))
+        ));
+        assert!(fs.backend().created.lock().unwrap().is_empty());
+        assert!(fs.backend().deleted.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn mkdir_and_rmdir_create_and_delete_topics() {
+        let config = BTreeMap::from([("retention.ms".to_string(), "1000".to_string())]);
+        let fs = KafkaFs::new(
+            MockBackend::new(),
+            KafkaFsOptions {
+                allow_admin: true,
+                partitions: 3,
+                topic_config: config.clone(),
+                ..KafkaFsOptions::default()
+            },
+        )
+        .unwrap();
+        fs.mkdir("kafka://new/", true).unwrap();
+        fs.makedirs("logs.csv", false).unwrap();
+        fs.rmdir("orders").unwrap();
+        assert_eq!(
+            *fs.backend().created.lock().unwrap(),
+            [
+                ("new".to_string(), 3, -1, config.clone()),
+                ("logs.csv".to_string(), 3, -1, config)
+            ]
+        );
+        assert_eq!(*fs.backend().deleted.lock().unwrap(), ["orders"]);
+        for path in ["", "orders/0", "orders/_meta", "orders/0/0-9.arrow"] {
+            assert!(
+                matches!(fs.mkdir(path, true), Err(FsError::NotSupported(_))),
+                "{path}"
+            );
+        }
     }
 
     #[test]
