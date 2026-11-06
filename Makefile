@@ -150,6 +150,7 @@ kafka-logs:  ## tail the fixture logs
 	$(COMPOSE) -f $(COMPOSE_FILE) logs -f
 
 test-integration:  ## run the env-gated integration tests against running fixtures
+	cd rust && FSSPEC_KAFKA_BOOTSTRAP="$(FSSPEC_KAFKA_BOOTSTRAP)" cargo test --test redpanda
 	FSSPEC_KAFKA_BOOTSTRAP="$(FSSPEC_KAFKA_BOOTSTRAP)" \
 	FSSPEC_KAFKA_KERBEROS_BOOTSTRAP="$(FSSPEC_KAFKA_KERBEROS_BOOTSTRAP)" \
 	KRB5_CONFIG="$(CURDIR)/ci/kerberos/krb5.conf" \

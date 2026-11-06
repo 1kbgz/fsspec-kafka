@@ -1,10 +1,18 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
+use fsspec_rs::FsResult;
 use rdkafka::config::ClientConfig;
-use rdkafka::consumer::{BaseConsumer, Consumer};
 use rdkafka::error::KafkaResult;
 use rdkafka::util::get_rdkafka_version;
+
+mod backend;
+mod fs;
+mod path;
+
+pub use backend::{KafkaBackend, PartitionInfo, RdKafkaBackend, TopicInfo, Watermarks};
+pub use fs::{windows, KafkaFs, KafkaFsOptions};
+pub use path::{KafkaPath, MetaFile, Window};
 
 /// Version of the linked librdkafka.
 pub fn librdkafka_version() -> String {
@@ -22,20 +30,11 @@ pub fn builtin_features() -> KafkaResult<Vec<String>> {
 }
 
 /// Topic names in the cluster. `config` holds librdkafka properties.
-pub fn list_topics(
-    config: &HashMap<String, String>,
-    timeout: Duration,
-) -> KafkaResult<Vec<String>> {
-    let mut client_config = ClientConfig::new();
-    for (key, value) in config {
-        client_config.set(key, value);
-    }
-    let consumer: BaseConsumer = client_config.create()?;
-    let metadata = consumer.fetch_metadata(None, timeout)?;
-    Ok(metadata
-        .topics()
-        .iter()
-        .map(|topic| topic.name().to_owned())
+pub fn list_topics(config: &HashMap<String, String>, timeout: Duration) -> FsResult<Vec<String>> {
+    Ok(RdKafkaBackend::new(config, timeout)?
+        .list_topics()?
+        .into_iter()
+        .map(|topic| topic.name)
         .collect())
 }
 
