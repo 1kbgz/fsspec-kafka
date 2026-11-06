@@ -67,6 +67,12 @@ jobs:
       - name: Setup Rust
         uses: actions-ext/rust/setup@af6343171cd1a86c4183da96de7eb96e15599662
 
+      # Vendored OpenSSL needs Strawberry Perl; Git Bash's Perl lacks required modules.
+      - name: Use Strawberry Perl for OpenSSL
+        run: echo "OPENSSL_SRC_PERL=C:/Strawberry/perl/bin/perl.exe" >> "$GITHUB_ENV"
+        shell: bash
+        if: runner.os == 'Windows'
+
       - name: Install dependencies
         run: make develop
         if: matrix.target == 'native'
