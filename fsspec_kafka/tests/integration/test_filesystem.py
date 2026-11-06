@@ -97,6 +97,7 @@ def test_files_support_raw_io(options, topic):
     with fs.open(f"{topic}/records/f", "wb") as file:
         assert file.writable() and not file.seekable()
         file.write(memoryview(b"value"))
+    file.discard()  # already closed, so the value stays committed
     with fs.open(f"{topic}/records/f") as file:
         buffer = bytearray(2)
         assert file.readinto(buffer) == 2 and buffer == b"va"
