@@ -1,6 +1,7 @@
 import json
 import os
 import threading
+import urllib.request
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -13,6 +14,7 @@ import pyarrow.parquet
 import pytest
 
 BOOTSTRAP = os.environ.get("KAFKA_TEST_BOOTSTRAP", "")
+SCHEMA_REGISTRY = os.environ.get("KAFKA_TEST_SCHEMA_REGISTRY", "")
 
 pytestmark = pytest.mark.skipif(not BOOTSTRAP, reason="KAFKA_TEST_BOOTSTRAP not set")
 
@@ -140,6 +142,34 @@ def test_appends_binary_values(options, empty_topic):
     with pytest.raises(ValueError, match="exactly one value column"), fs.open(f"{empty_topic}.arrow", "ab") as file:
         file.write(_encode(rows.append_column("other", pa.array([1, 2])), "arrow"))
         file.close()
+
+
+@pytest.mark.skipif(not SCHEMA_REGISTRY, reason="KAFKA_TEST_SCHEMA_REGISTRY not set")
+def test_confluent_values_with_registry_schemas(options, empty_topic):
+    from fsspec_data import SchemaRef
+
+    schema = {"type": "object", "properties": {"id": {"type": "integer"}, "name": {"type": "string"}}}
+    request = urllib.request.Request(
+        f"{SCHEMA_REGISTRY}/subjects/{empty_topic}-value/versions",
+        data=json.dumps({"schemaType": "JSON", "schema": json.dumps(schema)}).encode(),
+        headers={"Content-Type": "application/vnd.schemaregistry.v1+json"},
+    )
+    with urllib.request.urlopen(request) as response:
+        schema_id = json.load(response)["id"]
+    reference = SchemaRef(f"confluent://{empty_topic}-value/versions/latest", storage_options={"registry_url": SCHEMA_REGISTRY})
+    fs = fsspec.filesystem(
+        "kafka", **options, value_format="confluent", value_schema=reference, flatten_value=True, key_column="user", skip_instance_cache=True
+    )
+
+    with fs.open(f"{empty_topic}/0.parquet", "ab") as file:
+        file.write(_encode(ROWS, "parquet"))
+    with fs.open(f"{empty_topic}/0.arrow") as file:
+        table = pyarrow.ipc.open_stream(file).read_all()
+    assert table.select(["id", "name"]) == ROWS.select(["id", "name"])
+
+    with fsspec.open(f"kafka://{empty_topic}/0.arrow", **options) as file:
+        value = pyarrow.ipc.open_stream(file).read_all().column("value")[0].as_py()
+    assert value[:5] == b"\0" + schema_id.to_bytes(4, "big")
 
 
 def test_records_through_open_and_get_mapper(options, topic):

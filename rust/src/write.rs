@@ -161,9 +161,9 @@ fn text_schema(
         .into_iter()
         .filter_map(|(name, data_type)| Some(Field::new(name.as_ref()?, data_type, true)))
         .collect::<Vec<_>>();
-    match value {
-        ValueFormat::Binary => fields.push(Field::new("value", DataType::Utf8, true)),
-        ValueFormat::Json { schema, .. } => fields.extend(
+    match value.json() {
+        None => fields.push(Field::new("value", DataType::Utf8, true)),
+        Some((schema, _)) => fields.extend(
             schema
                 .fields()
                 .iter()
@@ -341,7 +341,19 @@ fn encode_values(values: &RecordBatch, value: &ValueFormat) -> FsResult<Vec<Opti
                 .map(|row| array.is_valid(row).then(|| array.value(row).to_vec()))
                 .collect())
         }
-        ValueFormat::Json { .. } => {
+        ValueFormat::Json { .. } | ValueFormat::ConfluentJson { .. } => {
+            let prefix = match value {
+                ValueFormat::ConfluentJson {
+                    schema_id: Some(id),
+                    ..
+                } => [&[0][..], &id.to_be_bytes()].concat(),
+                ValueFormat::ConfluentJson { .. } => {
+                    return Err(FsError::InvalidArgument(
+                        "appending Confluent values needs a schema ID".to_string(),
+                    ))
+                }
+                _ => Vec::new(),
+            };
             let encoded = DEFAULT_REGISTRY
                 .get(DataFormat::JsonLines)
                 .and_then(|codec| codec.encode(values.schema(), std::slice::from_ref(values)))
@@ -350,7 +362,7 @@ fn encode_values(values: &RecordBatch, value: &ValueFormat) -> FsResult<Vec<Opti
             Ok(encoded
                 .split(|&byte| byte == b'\n')
                 .take(values.num_rows())
-                .map(|line| Some(line.to_vec()))
+                .map(|line| Some([&prefix, line].concat()))
                 .collect())
         }
     }
@@ -474,6 +486,41 @@ mod tests {
                 ..NewMessage::default()
             }]
         );
+    }
+
+    #[test]
+    fn confluent_values_get_the_wire_format_prefix() {
+        let ValueFormat::Json { schema, flatten } = json() else {
+            unreachable!()
+        };
+        let confluent = |schema_id| ValueFormat::ConfluentJson {
+            schema: schema.clone(),
+            flatten,
+            schema_id,
+        };
+        let jsonl = br#"{"id": 1}"#;
+        let messages = file_messages(
+            jsonl,
+            DataFormat::JsonLines,
+            &confluent(Some(258)),
+            &MessageColumns::default(),
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            messages[0].value.as_deref(),
+            Some(&b"\0\0\0\x01\x02{\"id\":1}"[..])
+        );
+        assert!(matches!(
+            file_messages(
+                jsonl,
+                DataFormat::JsonLines,
+                &confluent(None),
+                &MessageColumns::default(),
+                None
+            ),
+            Err(FsError::InvalidArgument(_))
+        ));
     }
 
     #[test]

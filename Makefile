@@ -125,6 +125,7 @@ COMPOSE ?= podman-compose
 COMPOSE_FILE ?= ci/docker-compose.yml
 KAFKA_TEST_BOOTSTRAP ?= 127.0.0.1:59092
 KAFKA_TEST_KERBEROS_BOOTSTRAP ?= localhost:59094
+KAFKA_TEST_SCHEMA_REGISTRY ?= http://127.0.0.1:58081
 # Not exported, so plain `make test` does not trigger the gated tests.
 
 .PHONY: kafka-up kafka-wait kafka-down kafka-logs test-integration
@@ -136,6 +137,7 @@ kafka-wait:  ## block until both brokers accept connections
 	@echo "waiting for redpanda + kerberos kafka to become ready..."
 	@for i in $$(seq 1 60); do \
 		if $(COMPOSE) -f $(COMPOSE_FILE) exec -T redpanda rpk cluster health --exit-when-healthy >/dev/null 2>&1 \
+			&& curl -sf "$(KAFKA_TEST_SCHEMA_REGISTRY)/subjects" >/dev/null \
 			&& $(COMPOSE) -f $(COMPOSE_FILE) exec -T kafka-kerberos /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka-kerberos:9092 >/dev/null 2>&1; then \
 			echo "brokers ready"; exit 0; \
 		fi; \
@@ -153,6 +155,7 @@ test-integration:  ## run the env-gated integration tests against running fixtur
 	cd rust && KAFKA_TEST_BOOTSTRAP="$(KAFKA_TEST_BOOTSTRAP)" cargo test --test redpanda
 	KAFKA_TEST_BOOTSTRAP="$(KAFKA_TEST_BOOTSTRAP)" \
 	KAFKA_TEST_KERBEROS_BOOTSTRAP="$(KAFKA_TEST_KERBEROS_BOOTSTRAP)" \
+	KAFKA_TEST_SCHEMA_REGISTRY="$(KAFKA_TEST_SCHEMA_REGISTRY)" \
 	KRB5_CONFIG="$(CURDIR)/ci/kerberos/krb5.conf" \
 	KRB5CCNAME="FILE:$(CURDIR)/ci/kerberos/keytabs/client.ccache" \
 	python -m pytest -v fsspec_kafka/tests/integration --cov=fsspec_kafka --cov-append --cov-report term-missing --cov-report xml
