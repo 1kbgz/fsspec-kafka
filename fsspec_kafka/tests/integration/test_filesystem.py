@@ -1,5 +1,8 @@
+import json
 import os
+import threading
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import fsspec
 import pandas as pd
@@ -105,3 +108,30 @@ def test_files_support_raw_io(options, topic):
         assert file.readall() == b"lue"
     with pytest.raises(FileExistsError):
         fs.makedirs(f"{topic}/records")
+
+
+def test_streams_follow_new_messages_and_resume(options, topic):
+    fs = fsspec.filesystem("kafka", **options)
+    with fs.stream(f"kafka://{topic}") as stream:
+        assert stream.positions == {0: 3}
+        assert stream.poll(timeout=0.5) is None
+        # Produce while iteration is already waiting.
+        threading.Timer(0.5, fs.pipe_file, (f"{topic}/records/d", b"d")).start()
+        batch = next(iter(stream))
+        assert batch.column("value").to_pylist() == [b"d"]
+        assert batch.schema.names == ["topic", "partition", "offset", "timestamp", "key", "headers", "value"]
+        saved = json.loads(json.dumps(stream.positions))
+    assert stream.closed
+
+    fs.pipe_file(f"{topic}/records/e", b"e")
+    with fs.stream(f"{topic}/0", start=saved) as stream:
+        assert stream.poll(timeout=10).column("value").to_pylist() == [b"e"]
+
+    with fs.stream(topic, start="beginning") as stream:
+        values = []
+        while len(values) < 5:
+            values += stream.poll(timeout=10).column("value").to_pylist()
+    assert values == [b"a", b"b", b"c", b"d", b"e"]
+
+    with fs.stream(topic, start=datetime.now(UTC) + timedelta(hours=1)) as stream:
+        assert stream.positions == {0: 5}

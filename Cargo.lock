@@ -665,6 +665,7 @@ dependencies = [
 name = "fsspec_kafka_py"
 version = "0.1.0"
 dependencies = [
+ "arrow",
  "fsspec_data",
  "fsspec_kafka",
  "fsspec_rs",

@@ -63,7 +63,7 @@ pub struct NewMessage {
     pub value: Option<Vec<u8>>,
 }
 
-/// Where the broker stored a produced message.
+/// A message position: where a produced message was stored, or where to start following.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MessageOffset {
     pub partition: i32,
@@ -71,6 +71,12 @@ pub struct MessageOffset {
 }
 
 pub type MessageStream = Box<dyn Iterator<Item = FsResult<Message>> + Send>;
+
+/// Messages arriving on followed partitions.
+pub trait LiveMessages: Send {
+    /// Waits up to `timeout` for the next message. `None` means none arrived in time.
+    fn poll(&mut self, timeout: Duration) -> FsResult<Option<Message>>;
+}
 
 /// Cluster operations used by `KafkaFs`.
 pub trait KafkaBackend: Send + Sync + 'static {
@@ -96,6 +102,9 @@ pub trait KafkaBackend: Send + Sync + 'static {
     /// partition, whichever comes first, so offsets missing from compacted or
     /// transactional partitions do not block the read.
     fn read(&self, topic: &str, ranges: Vec<PartitionRange>) -> FsResult<MessageStream>;
+
+    /// Messages from each start offset onward, including ones produced later.
+    fn follow(&self, topic: &str, starts: Vec<MessageOffset>) -> FsResult<Box<dyn LiveMessages>>;
 
     /// Produces `messages` in order, partitioned by key, and returns their offsets once the
     /// broker has acknowledged every one. Fails with `FsError::NotFound` when the topic does
@@ -217,6 +226,16 @@ impl KafkaBackend for RdKafkaBackend {
         self.read_messages(topic, ranges)
     }
 
+    fn follow(&self, topic: &str, starts: Vec<MessageOffset>) -> FsResult<Box<dyn LiveMessages>> {
+        let starts = starts
+            .iter()
+            .map(|start| (start.partition, start.offset))
+            .collect::<Vec<_>>();
+        Ok(Box::new(RdKafkaLiveMessages {
+            consumer: self.assigned_consumer(topic, &starts, false)?,
+        }))
+    }
+
     fn produce(&self, topic: &str, messages: Vec<NewMessage>) -> FsResult<Vec<MessageOffset>> {
         self.topic(topic)?;
         let producer = self.producer()?;
@@ -332,6 +351,26 @@ impl RdKafkaBackend {
         if ranges.is_empty() {
             return Ok(Box::new(std::iter::empty()));
         }
+        let starts = ranges
+            .iter()
+            .map(|range| (range.partition, range.start))
+            .collect::<Vec<_>>();
+        Ok(Box::new(RdKafkaMessages {
+            consumer: self.assigned_consumer(topic, &starts, true)?,
+            topic: topic.to_string(),
+            ends: ranges.iter().map(|r| (r.partition, r.end)).collect(),
+            timeout: self.timeout,
+        }))
+    }
+
+    /// A consumer assigned to `starts` as (partition, offset) pairs. With `eof`, it reports
+    /// reaching the end of each partition.
+    fn assigned_consumer(
+        &self,
+        topic: &str,
+        starts: &[(i32, i64)],
+        eof: bool,
+    ) -> FsResult<BaseConsumer> {
         let mut config = self.config.clone();
         // librdkafka requires a group id to assign partitions. Assignment never joins the
         // group, and offsets are never committed, so the group is not created on the broker.
@@ -339,23 +378,32 @@ impl RdKafkaBackend {
             config.set("group.id", "fsspec-kafka");
         }
         let consumer: BaseConsumer = config
-            .set("enable.partition.eof", "true")
+            .set("enable.partition.eof", if eof { "true" } else { "false" })
             .set("auto.offset.reset", "earliest")
             .create()
             .map_err(kafka_error)?;
         let mut assignment = TopicPartitionList::new();
-        for range in &ranges {
+        for &(partition, offset) in starts {
             assignment
-                .add_partition_offset(topic, range.partition, Offset::Offset(range.start))
+                .add_partition_offset(topic, partition, Offset::Offset(offset))
                 .map_err(kafka_error)?;
         }
         consumer.assign(&assignment).map_err(kafka_error)?;
-        Ok(Box::new(RdKafkaMessages {
-            consumer,
-            topic: topic.to_string(),
-            ends: ranges.iter().map(|r| (r.partition, r.end)).collect(),
-            timeout: self.timeout,
-        }))
+        Ok(consumer)
+    }
+}
+
+struct RdKafkaLiveMessages {
+    consumer: BaseConsumer,
+}
+
+impl LiveMessages for RdKafkaLiveMessages {
+    fn poll(&mut self, timeout: Duration) -> FsResult<Option<Message>> {
+        match self.consumer.poll(timeout) {
+            None => Ok(None),
+            Some(Ok(message)) => Ok(Some(owned_message(&message))),
+            Some(Err(error)) => Err(kafka_error(error)),
+        }
     }
 }
 

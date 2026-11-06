@@ -33,5 +33,6 @@ fn fsspec_kafka(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(list_topics, m)?)?;
     m.add_class::<fs::RustKafkaFs>()?;
     m.add_class::<fs::RustKafkaFile>()?;
+    m.add_class::<fs::RustKafkaStream>()?;
     Ok(())
 }

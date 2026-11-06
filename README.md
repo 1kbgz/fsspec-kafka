@@ -43,5 +43,14 @@ state = fsspec.get_mapper("kafka://state/records", **options)
 state["user/42"] = b"..."
 ```
 
+`fs.stream` follows a topic or one partition as it grows, returning `pyarrow.RecordBatch` objects with the same columns as `.arrow` files. It starts at `"end"` by default; `"beginning"`, a `datetime`, or the `positions` of an earlier stream are also accepted.
+
+```python
+with fs.stream("orders", start="beginning") as stream:
+    for batch in stream:  # waits for new messages
+        handle(batch)
+        save(stream.positions)  # {partition: next offset}, to resume with start=positions
+```
+
 > [!NOTE]
 > This library was generated using [copier](https://copier.readthedocs.io/en/stable/) from the [Base Python Project Template repository](https://github.com/python-project-templates/base).

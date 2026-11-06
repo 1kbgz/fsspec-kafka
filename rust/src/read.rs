@@ -68,39 +68,48 @@ impl MessageBatches {
     }
 
     fn batch(&self, messages: &[Message]) -> FsResult<RecordBatch> {
-        let mut topic = StringBuilder::new();
-        let mut partition = Int32Builder::new();
-        let mut offset = Int64Builder::new();
-        let mut timestamp = TimestampMillisecondBuilder::new().with_timezone("UTC");
-        let mut key = BinaryBuilder::new();
-        let mut headers = headers_builder();
-        let mut value = BinaryBuilder::new();
-        for message in messages {
-            topic.append_value(&self.topic);
-            partition.append_value(message.partition);
-            offset.append_value(message.offset);
-            timestamp.append_option(message.timestamp_ms);
-            key.append_option(message.key.as_deref());
-            for (name, header) in &message.headers {
-                headers.keys().append_value(name);
-                headers.values().append_option(header.as_deref());
-            }
-            headers.append(true).map_err(arrow_error)?;
-            value.append_option(message.value.as_deref());
-        }
-        let mut columns: Vec<ArrayRef> = vec![
-            Arc::new(topic.finish()),
-            Arc::new(partition.finish()),
-            Arc::new(offset.finish()),
-            Arc::new(timestamp.finish()),
-            Arc::new(key.finish()),
-        ];
-        if self.schema.column_with_name("headers").is_some() {
-            columns.push(Arc::new(headers.finish()));
-        }
-        columns.push(Arc::new(value.finish()));
-        RecordBatch::try_new(self.schema.clone(), columns).map_err(arrow_error)
+        message_batch(&self.topic, &self.schema, messages)
     }
+}
+
+/// `messages` as one record batch with `schema`, a `message_schema`.
+pub(crate) fn message_batch(
+    topic_name: &str,
+    schema: &SchemaRef,
+    messages: &[Message],
+) -> FsResult<RecordBatch> {
+    let mut topic = StringBuilder::new();
+    let mut partition = Int32Builder::new();
+    let mut offset = Int64Builder::new();
+    let mut timestamp = TimestampMillisecondBuilder::new().with_timezone("UTC");
+    let mut key = BinaryBuilder::new();
+    let mut headers = headers_builder();
+    let mut value = BinaryBuilder::new();
+    for message in messages {
+        topic.append_value(topic_name);
+        partition.append_value(message.partition);
+        offset.append_value(message.offset);
+        timestamp.append_option(message.timestamp_ms);
+        key.append_option(message.key.as_deref());
+        for (name, header) in &message.headers {
+            headers.keys().append_value(name);
+            headers.values().append_option(header.as_deref());
+        }
+        headers.append(true).map_err(arrow_error)?;
+        value.append_option(message.value.as_deref());
+    }
+    let mut columns: Vec<ArrayRef> = vec![
+        Arc::new(topic.finish()),
+        Arc::new(partition.finish()),
+        Arc::new(offset.finish()),
+        Arc::new(timestamp.finish()),
+        Arc::new(key.finish()),
+    ];
+    if schema.column_with_name("headers").is_some() {
+        columns.push(Arc::new(headers.finish()));
+    }
+    columns.push(Arc::new(value.finish()));
+    RecordBatch::try_new(schema.clone(), columns).map_err(arrow_error)
 }
 
 impl Iterator for MessageBatches {
