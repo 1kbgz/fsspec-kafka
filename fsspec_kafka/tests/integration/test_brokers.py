@@ -5,17 +5,17 @@ import pytest
 
 from fsspec_kafka import list_topics
 
-BOOTSTRAP = os.environ.get("FSSPEC_KAFKA_BOOTSTRAP", "")
-KERBEROS_BOOTSTRAP = os.environ.get("FSSPEC_KAFKA_KERBEROS_BOOTSTRAP", "")
+BOOTSTRAP = os.environ.get("KAFKA_TEST_BOOTSTRAP", "")
+KERBEROS_BOOTSTRAP = os.environ.get("KAFKA_TEST_KERBEROS_BOOTSTRAP", "")
 KEYTAB = Path(__file__).parents[3] / "ci" / "kerberos" / "keytabs" / "client.keytab"
 
 
-@pytest.mark.skipif(not BOOTSTRAP, reason="FSSPEC_KAFKA_BOOTSTRAP not set")
+@pytest.mark.skipif(not BOOTSTRAP, reason="KAFKA_TEST_BOOTSTRAP not set")
 def test_plaintext_list_topics():
     assert isinstance(list_topics({"bootstrap.servers": BOOTSTRAP}), list)
 
 
-@pytest.mark.skipif(not KERBEROS_BOOTSTRAP, reason="FSSPEC_KAFKA_KERBEROS_BOOTSTRAP not set")
+@pytest.mark.skipif(not KERBEROS_BOOTSTRAP, reason="KAFKA_TEST_KERBEROS_BOOTSTRAP not set")
 def test_kerberos_list_topics():
     config = {
         "bootstrap.servers": KERBEROS_BOOTSTRAP,

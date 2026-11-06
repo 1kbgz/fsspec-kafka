@@ -1,4 +1,4 @@
-//! Discovery and reads against a live broker. Set `FSSPEC_KAFKA_BOOTSTRAP` (see `ci/docker-compose.yml`).
+//! Discovery and reads against a live broker. Set `KAFKA_TEST_BOOTSTRAP` (see `ci/docker-compose.yml`).
 
 use std::collections::{BTreeMap, HashMap};
 use std::io::Read;
@@ -93,7 +93,7 @@ impl Drop for Topic {
 }
 
 fn bootstrap() -> Option<String> {
-    std::env::var("FSSPEC_KAFKA_BOOTSTRAP").ok()
+    std::env::var("KAFKA_TEST_BOOTSTRAP").ok()
 }
 
 fn filesystem(bootstrap: &str) -> KafkaFs<RdKafkaBackend> {

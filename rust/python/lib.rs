@@ -4,6 +4,8 @@ use std::time::Duration;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 
+mod fs;
+
 /// Version of the linked librdkafka.
 #[pyfunction]
 fn librdkafka_version() -> String {
@@ -29,5 +31,7 @@ fn fsspec_kafka(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(librdkafka_version, m)?)?;
     m.add_function(wrap_pyfunction!(builtin_features, m)?)?;
     m.add_function(wrap_pyfunction!(list_topics, m)?)?;
+    m.add_class::<fs::RustKafkaFs>()?;
+    m.add_class::<fs::RustKafkaFile>()?;
     Ok(())
 }
