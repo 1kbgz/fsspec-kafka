@@ -1,14 +1,16 @@
-use std::collections::BTreeMap;
+use std::collections::hash_map::Entry;
+use std::collections::{BTreeMap, HashMap};
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use fsspec_data::DataFormat;
 use fsspec_rs::{FileInfo, FileSystem, FsError, FsFile, FsResult, OpenMode, OpenOptions};
 use serde_json::json;
 
-use crate::backend::{KafkaBackend, PartitionRange, TopicInfo, Watermarks};
+use crate::backend::{KafkaBackend, NewMessage, PartitionRange, TopicInfo, Watermarks};
 use crate::path::{KafkaPath, MetaFile, Window};
 use crate::read::{EncodedFile, MessageBatches};
+use crate::records::{fetch, record_file, RecordIndex, RecordWriter, RECORDS_TOPIC_CONFIG};
 
 const PROTOCOLS: &[&str] = &["kafka"];
 
@@ -20,7 +22,8 @@ pub struct KafkaFsOptions {
     pub list_format: DataFormat,
     /// Messages per Arrow record batch when reading.
     pub batch_size: usize,
-    /// Allows `mkdir` to create topics and `rmdir` to delete them.
+    /// Allows `mkdir` to create topics and `rmdir` to delete them. `mkdir("topic/records")`
+    /// creates a compacted topic for the records view.
     pub allow_admin: bool,
     /// Partition count for topics created by `mkdir`. `-1` uses the broker default.
     pub partitions: i32,
@@ -48,6 +51,8 @@ impl Default for KafkaFsOptions {
 pub struct KafkaFs<B> {
     backend: Arc<B>,
     options: KafkaFsOptions,
+    /// Record indexes by topic, built on first access to `topic/records`.
+    records: Mutex<HashMap<String, RecordIndex>>,
 }
 
 impl<B: KafkaBackend> KafkaFs<B> {
@@ -60,6 +65,7 @@ impl<B: KafkaBackend> KafkaFs<B> {
         Ok(Self {
             backend: Arc::new(backend),
             options,
+            records: Mutex::default(),
         })
     }
 
@@ -80,14 +86,20 @@ impl<B: KafkaBackend> KafkaFs<B> {
         Ok(parsed)
     }
 
+    fn require_admin(&self, path: &str) -> FsResult<()> {
+        if self.options.allow_admin {
+            Ok(())
+        } else {
+            Err(FsError::PermissionDenied(format!(
+                "creating and deleting topics requires allow_admin: {path}"
+            )))
+        }
+    }
+
     /// The topic named by a directory path for `mkdir` or `rmdir`. A missing topic named
     /// like a file, such as `events.csv`, parses as a snapshot, so it is mapped back here.
     fn admin_topic(&self, path: &str) -> FsResult<String> {
-        if !self.options.allow_admin {
-            return Err(FsError::PermissionDenied(format!(
-                "creating and deleting topics requires allow_admin: {path}"
-            )));
-        }
+        self.require_admin(path)?;
         match KafkaPath::parse(path)? {
             KafkaPath::Topic(topic) => Ok(topic),
             KafkaPath::TopicSnapshot { .. } => Ok(self.strip_protocol(path)),
@@ -95,6 +107,55 @@ impl<B: KafkaBackend> KafkaFs<B> {
                 "only topics can be created or deleted: {path}"
             ))),
         }
+    }
+
+    /// Runs `f` on the topic's record index, building it on first use. With `catch_up`, an
+    /// existing index first replays messages produced since it was last used.
+    fn with_records<T>(
+        &self,
+        topic: &str,
+        catch_up: bool,
+        f: impl FnOnce(&mut RecordIndex) -> FsResult<T>,
+    ) -> FsResult<T> {
+        let mut indexes = self
+            .records
+            .lock()
+            .map_err(|_| FsError::Other("record index lock is poisoned".to_string()))?;
+        let index = match indexes.entry(topic.to_string()) {
+            Entry::Occupied(entry) => {
+                let index = entry.into_mut();
+                if catch_up {
+                    index.catch_up(self.backend.as_ref(), topic)?;
+                }
+                index
+            }
+            Entry::Vacant(entry) => entry.insert(RecordIndex::open(self.backend.as_ref(), topic)?),
+        };
+        f(index)
+    }
+
+    /// Reads the latest value of `key`. A value missing from its indexed offset was removed
+    /// by compaction after a newer value or tombstone; catching up finds the newer value, and
+    /// if the key still points at the missing offset, the key was deleted.
+    fn read_record(&self, topic: &str, key: &str) -> FsResult<(FileInfo, Vec<u8>)> {
+        let backend = self.backend.as_ref();
+        self.with_records(topic, true, |index| loop {
+            let path = KafkaPath::Records {
+                topic: topic.to_string(),
+                key: key.to_string(),
+            };
+            let location = index
+                .get(key)
+                .ok_or_else(|| FsError::NotFound(path.to_path()))?;
+            if let Some(value) = fetch(backend, topic, location)? {
+                return Ok((record_file(topic, key, location), value));
+            }
+            index.catch_up(backend, topic)?;
+            if index.get(key) == Some(location) {
+                index.remove(key);
+                return Err(FsError::NotFound(path.to_path()));
+            }
+        })
     }
 
     fn partition(&self, topic: &str, partition: i32) -> FsResult<TopicInfo> {
@@ -250,6 +311,21 @@ impl<B: KafkaBackend> KafkaFs<B> {
                     })
                     .collect())
             }
+            KafkaPath::Records { topic, key } => self.with_records(&topic, true, |index| {
+                if let Some(location) = index.get(&key).filter(|_| !key.is_empty()) {
+                    Ok(vec![record_file(&topic, &key, location)])
+                } else if key.is_empty() || index.is_dir(&key) {
+                    Ok(index.children(&topic, &key))
+                } else {
+                    Err(FsError::NotFound(
+                        KafkaPath::Records {
+                            topic: topic.clone(),
+                            key: key.clone(),
+                        }
+                        .to_path(),
+                    ))
+                }
+            }),
             path => Err(FsError::NotADirectory(path.to_path())),
         }
     }
@@ -306,6 +382,16 @@ impl<B: KafkaBackend> KafkaFs<B> {
                 self.backend.topic(topic)?;
                 Ok(data_file(path.to_path(), *format))
             }
+            KafkaPath::Records { topic, key } => self.with_records(topic, true, |index| {
+                if key.is_empty() || index.get(key).is_none() && index.is_dir(key) {
+                    Ok(FileInfo::directory(path.to_path()))
+                } else {
+                    let location = index
+                        .get(key)
+                        .ok_or_else(|| FsError::NotFound(path.to_path()))?;
+                    Ok(record_file(topic, key, location))
+                }
+            }),
         }
     }
 }
@@ -329,12 +415,39 @@ impl<B: KafkaBackend> FileSystem for KafkaFs<B> {
         mode: OpenMode,
         _opts: Option<OpenOptions>,
     ) -> FsResult<Box<dyn FsFile>> {
+        let parsed = self.resolve(path)?;
+        if let KafkaPath::Records { topic, key } = &parsed {
+            if key.is_empty() {
+                return Err(FsError::IsADirectory(path.to_string()));
+            }
+            return match mode {
+                OpenMode::Read => {
+                    let (info, value) = self.read_record(topic, key)?;
+                    Ok(Box::new(MemoryFile {
+                        cursor: Cursor::new(value),
+                        info,
+                    }))
+                }
+                OpenMode::Write => {
+                    // Check the topic is compacted before accepting the value.
+                    self.with_records(topic, false, |_| Ok(()))?;
+                    Ok(Box::new(RecordWriter::new(
+                        self.backend.clone(),
+                        topic.clone(),
+                        key.clone(),
+                    )))
+                }
+                _ => Err(FsError::NotSupported(format!(
+                    "records can only be opened for reading or writing: {path}"
+                ))),
+            };
+        }
         if mode != OpenMode::Read {
             return Err(FsError::NotSupported(format!(
                 "writing to Kafka is not supported yet: {path}"
             )));
         }
-        match self.resolve(path)? {
+        match parsed {
             KafkaPath::Meta(topic, file) => {
                 let content = self.meta_content(&topic, file)?;
                 let info =
@@ -352,10 +465,36 @@ impl<B: KafkaBackend> FileSystem for KafkaFs<B> {
         }
     }
 
+    /// Produces the value and returns once the broker acknowledges it.
+    fn pipe_file(&self, path: &str, data: &[u8]) -> FsResult<()> {
+        let mut file = self.open(path, OpenMode::Write, None)?;
+        file.write_all(data)?;
+        file.commit()
+    }
+
+    /// Deletes a record by producing a tombstone for its key.
     fn rm_file(&self, path: &str) -> FsResult<()> {
-        Err(FsError::NotSupported(format!(
-            "Kafka topics are append-only: {path}"
-        )))
+        match self.resolve(path)? {
+            KafkaPath::Records { topic, key } if !key.is_empty() => {
+                self.with_records(&topic, true, |index| {
+                    index
+                        .get(&key)
+                        .map(|_| ())
+                        .ok_or_else(|| FsError::NotFound(path.to_string()))
+                })?;
+                self.backend.produce(
+                    &topic,
+                    vec![NewMessage {
+                        key: Some(key.into_bytes()),
+                        value: None,
+                    }],
+                )?;
+                Ok(())
+            }
+            _ => Err(FsError::NotSupported(format!(
+                "Kafka topics are append-only: {path}"
+            ))),
+        }
     }
 
     fn cp_file(&self, src: &str, dst: &str) -> FsResult<()> {
@@ -367,6 +506,24 @@ impl<B: KafkaBackend> FileSystem for KafkaFs<B> {
     /// Creates a topic with the configured partitions, replication, and topic config.
     /// Topics have no parent directories, so `create_parents` has no effect.
     fn mkdir(&self, path: &str, _create_parents: bool) -> FsResult<()> {
+        match KafkaPath::parse(path)? {
+            KafkaPath::Records { topic, key } if key.is_empty() => {
+                self.require_admin(path)?;
+                let mut config = self.options.topic_config.clone();
+                config.extend(
+                    RECORDS_TOPIC_CONFIG.map(|(name, value)| (name.to_string(), value.to_string())),
+                );
+                return self.backend.create_topic(
+                    &topic,
+                    self.options.partitions,
+                    self.options.replication,
+                    &config,
+                );
+            }
+            // Record directories exist while they hold keys, like S3 prefixes.
+            KafkaPath::Records { .. } => return Ok(()),
+            _ => {}
+        }
         let topic = self.admin_topic(path)?;
         self.backend.create_topic(
             &topic,
@@ -378,6 +535,9 @@ impl<B: KafkaBackend> FileSystem for KafkaFs<B> {
 
     /// Deletes a topic and all of its messages.
     fn rmdir(&self, path: &str) -> FsResult<()> {
+        if let KafkaPath::Records { .. } = KafkaPath::parse(path)? {
+            return Ok(());
+        }
         let topic = self.admin_topic(path)?;
         self.backend.delete_topic(&topic)
     }
