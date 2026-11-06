@@ -3,17 +3,30 @@ use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::sync::{Arc, Mutex};
 
 use arrow::array::{
-    Array, ArrayRef, BinaryBuilder, Int32Builder, Int64Builder, MapBuilder, RecordBatch,
-    StringBuilder, TimestampMillisecondBuilder,
+    Array, ArrayRef, AsArray, BinaryArray, BinaryBuilder, Int32Builder, Int64Builder, MapBuilder,
+    RecordBatch, StringBuilder, StructArray, TimestampMillisecondBuilder,
 };
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit};
+use arrow::compute::{concat_batches, interleave};
+use arrow::datatypes::{DataType, Field, Fields, Schema, SchemaRef, TimeUnit};
 use fsspec_data::{CodecWriter, DataFormat, DEFAULT_REGISTRY};
 use fsspec_rs::{FileInfo, FsError, FsFile, FsResult};
 
 use crate::backend::{Message, MessageStream};
 
+/// How message values become columns.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub enum ValueFormat {
+    /// `value: binary`.
+    #[default]
+    Binary,
+    /// JSON objects decoded with `schema`, nested in a `value` struct column or, with
+    /// `flatten`, placed beside the envelope columns. Decoded fields are nullable because
+    /// tombstones have no value.
+    Json { schema: SchemaRef, flatten: bool },
+}
+
 /// Arrow schema of message files. CSV cannot encode maps, so CSV files leave out `headers`.
-pub fn message_schema(format: DataFormat) -> SchemaRef {
+pub fn message_schema(format: DataFormat, value: &ValueFormat) -> SchemaRef {
     let mut fields = vec![
         Field::new("topic", DataType::Utf8, false),
         Field::new("partition", DataType::Int32, false),
@@ -32,8 +45,30 @@ pub fn message_schema(format: DataFormat) -> SchemaRef {
             false,
         ));
     }
-    fields.push(Field::new("value", DataType::Binary, true));
+    match value {
+        ValueFormat::Binary => fields.push(Field::new("value", DataType::Binary, true)),
+        ValueFormat::Json {
+            schema,
+            flatten: false,
+        } => fields.push(Field::new(
+            "value",
+            DataType::Struct(nullable_fields(schema)),
+            true,
+        )),
+        ValueFormat::Json {
+            schema,
+            flatten: true,
+        } => fields.extend(nullable_fields(schema).iter().map(|f| f.as_ref().clone())),
+    }
     Arc::new(Schema::new(fields))
+}
+
+fn nullable_fields(schema: &Schema) -> Fields {
+    schema
+        .fields()
+        .iter()
+        .map(|field| field.as_ref().clone().with_nullable(true))
+        .collect()
 }
 
 fn headers_builder() -> MapBuilder<StringBuilder, BinaryBuilder> {
@@ -44,6 +79,7 @@ fn headers_builder() -> MapBuilder<StringBuilder, BinaryBuilder> {
 pub struct MessageBatches {
     topic: String,
     messages: MessageStream,
+    value: ValueFormat,
     schema: SchemaRef,
     batch_size: usize,
 }
@@ -53,12 +89,14 @@ impl MessageBatches {
         topic: &str,
         messages: MessageStream,
         format: DataFormat,
+        value: ValueFormat,
         batch_size: usize,
     ) -> Self {
         Self {
             topic: topic.to_string(),
             messages,
-            schema: message_schema(format),
+            schema: message_schema(format, &value),
+            value,
             batch_size,
         }
     }
@@ -68,14 +106,15 @@ impl MessageBatches {
     }
 
     fn batch(&self, messages: &[Message]) -> FsResult<RecordBatch> {
-        message_batch(&self.topic, &self.schema, messages)
+        message_batch(&self.topic, &self.schema, &self.value, messages)
     }
 }
 
-/// `messages` as one record batch with `schema`, a `message_schema`.
+/// `messages` as one record batch with `schema`, the `message_schema` for `value`.
 pub(crate) fn message_batch(
     topic_name: &str,
     schema: &SchemaRef,
+    value: &ValueFormat,
     messages: &[Message],
 ) -> FsResult<RecordBatch> {
     let mut topic = StringBuilder::new();
@@ -84,7 +123,6 @@ pub(crate) fn message_batch(
     let mut timestamp = TimestampMillisecondBuilder::new().with_timezone("UTC");
     let mut key = BinaryBuilder::new();
     let mut headers = headers_builder();
-    let mut value = BinaryBuilder::new();
     for message in messages {
         topic.append_value(topic_name);
         partition.append_value(message.partition);
@@ -96,7 +134,6 @@ pub(crate) fn message_batch(
             headers.values().append_option(header.as_deref());
         }
         headers.append(true).map_err(arrow_error)?;
-        value.append_option(message.value.as_deref());
     }
     let mut columns: Vec<ArrayRef> = vec![
         Arc::new(topic.finish()),
@@ -108,8 +145,72 @@ pub(crate) fn message_batch(
     if schema.column_with_name("headers").is_some() {
         columns.push(Arc::new(headers.finish()));
     }
-    columns.push(Arc::new(value.finish()));
+    let values = messages
+        .iter()
+        .map(|message| message.value.as_deref())
+        .collect::<Vec<_>>();
+    match value {
+        ValueFormat::Binary => columns.push(Arc::new(BinaryArray::from(values))),
+        ValueFormat::Json { schema, flatten } => {
+            let decoded = decode_json(schema, &values)?;
+            if *flatten {
+                columns.extend_from_slice(decoded.columns());
+            } else {
+                columns.push(Arc::new(decoded));
+            }
+        }
+    }
     RecordBatch::try_new(schema.clone(), columns).map_err(arrow_error)
+}
+
+/// Decodes one struct row per value, with null rows for tombstones. Values are decoded
+/// together as JSON lines, except values containing a raw newline, which are decoded one at
+/// a time.
+fn decode_json(schema: &Schema, values: &[Option<&[u8]>]) -> FsResult<StructArray> {
+    let fields = nullable_fields(schema);
+    let decode = |data: &[u8], rows: usize| -> FsResult<StructArray> {
+        let schema = Arc::new(Schema::new(fields.clone()));
+        let decoded = DEFAULT_REGISTRY
+            .get(DataFormat::JsonLines)
+            .and_then(|codec| codec.decode(data, Some(schema.clone())))
+            .map_err(|error| FsError::Other(format!("invalid JSON value: {error}")))?;
+        let batch = concat_batches(&schema, &decoded.batches).map_err(arrow_error)?;
+        if batch.num_rows() != rows {
+            return Err(FsError::Other(format!(
+                "{rows} JSON values decoded to {} rows; each value must be one JSON object",
+                batch.num_rows()
+            )));
+        }
+        Ok(batch.into())
+    };
+    // Source 0 is a null row, source 1 the joined values, then one per separate value.
+    let mut sources = vec![StructArray::new_null(fields.clone(), 1)];
+    let mut joined = Vec::new();
+    let mut joined_rows = 0;
+    let mut indices = Vec::with_capacity(values.len());
+    let mut separate = Vec::new();
+    for value in values {
+        match value {
+            None => indices.push((0, 0)),
+            Some(value) if value.contains(&b'\n') => {
+                separate.push(decode(value, 1)?);
+                indices.push((1 + separate.len(), 0));
+            }
+            Some(value) => {
+                joined.extend_from_slice(value);
+                joined.push(b'\n');
+                indices.push((1, joined_rows));
+                joined_rows += 1;
+            }
+        }
+    }
+    sources.push(decode(&joined, joined_rows)?);
+    sources.extend(separate);
+    let arrays = sources.iter().map(|s| s as &dyn Array).collect::<Vec<_>>();
+    Ok(interleave(&arrays, &indices)
+        .map_err(arrow_error)?
+        .as_struct()
+        .clone())
 }
 
 impl Iterator for MessageBatches {
@@ -287,4 +388,85 @@ impl FsFile for EncodedFile {
 
 fn arrow_error(error: arrow::error::ArrowError) -> FsError {
     FsError::Other(error.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use arrow::array::{AsArray, Int64Array, StringArray};
+    use arrow::datatypes::Int64Type;
+
+    use super::*;
+
+    fn message(offset: i64, value: Option<&str>) -> Message {
+        Message {
+            partition: 0,
+            offset,
+            timestamp_ms: None,
+            key: None,
+            headers: Vec::new(),
+            value: value.map(|value| value.as_bytes().to_vec()),
+        }
+    }
+
+    fn json(flatten: bool) -> ValueFormat {
+        ValueFormat::Json {
+            schema: Arc::new(Schema::new(vec![
+                Field::new("id", DataType::Int64, false),
+                Field::new("name", DataType::Utf8, false),
+            ])),
+            flatten,
+        }
+    }
+
+    fn batch(value: &ValueFormat, values: &[Option<&str>]) -> FsResult<RecordBatch> {
+        let messages = values
+            .iter()
+            .enumerate()
+            .map(|(offset, value)| message(offset as i64, *value))
+            .collect::<Vec<_>>();
+        let schema = message_schema(DataFormat::Arrow, value);
+        message_batch("orders", &schema, value, &messages)
+    }
+
+    #[test]
+    fn json_values_keep_message_order() {
+        let values = [
+            Some(r#"{"id": 1, "name": "a"}"#),
+            None,
+            Some("{\n  \"id\": 2,\n  \"name\": \"b\"\n}\n"),
+            Some(r#"{"id": 3, "name": "c", "extra": true}"#),
+        ];
+        let nested = batch(&json(false), &values).unwrap();
+        let value = nested.column_by_name("value").unwrap().as_struct();
+        assert_eq!(value.null_count(), 1);
+        assert!(value.is_null(1));
+        assert_eq!(
+            value
+                .column_by_name("id")
+                .unwrap()
+                .as_primitive::<Int64Type>(),
+            &Int64Array::from(vec![Some(1), None, Some(2), Some(3)])
+        );
+
+        let flat = batch(&json(true), &values).unwrap();
+        assert_eq!(
+            flat.schema(),
+            message_schema(DataFormat::Arrow, &json(true))
+        );
+        assert!(flat.schema().field_with_name("id").unwrap().is_nullable());
+        assert_eq!(
+            flat.column_by_name("name").unwrap().as_string::<i32>(),
+            &StringArray::from(vec![Some("a"), None, Some("b"), Some("c")])
+        );
+    }
+
+    #[test]
+    fn values_that_are_not_one_json_object_fail() {
+        for value in [r#"{"id": 1}{"id": 2}"#, "", "not json", "{\"id\": \n"] {
+            assert!(
+                batch(&json(false), &[Some(r#"{"id": 0}"#), Some(value)]).is_err(),
+                "{value:?}"
+            );
+        }
+    }
 }

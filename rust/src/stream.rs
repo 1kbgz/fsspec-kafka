@@ -7,7 +7,7 @@ use fsspec_data::DataFormat;
 use fsspec_rs::FsResult;
 
 use crate::backend::LiveMessages;
-use crate::read::{message_batch, message_schema};
+use crate::read::{message_batch, message_schema, ValueFormat};
 
 /// Where `KafkaFs::stream` starts reading each partition.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -27,6 +27,7 @@ pub enum StreamStart {
 pub struct MessageTail {
     topic: String,
     messages: Box<dyn LiveMessages>,
+    value: ValueFormat,
     schema: SchemaRef,
     batch_size: usize,
     positions: BTreeMap<i32, i64>,
@@ -36,13 +37,15 @@ impl MessageTail {
     pub(crate) fn new(
         topic: String,
         messages: Box<dyn LiveMessages>,
+        value: ValueFormat,
         batch_size: usize,
         positions: BTreeMap<i32, i64>,
     ) -> Self {
         Self {
             topic,
             messages,
-            schema: message_schema(DataFormat::Arrow),
+            schema: message_schema(DataFormat::Arrow, &value),
+            value,
             batch_size,
             positions,
         }
@@ -75,6 +78,6 @@ impl MessageTail {
         for message in &messages {
             self.positions.insert(message.partition, message.offset + 1);
         }
-        message_batch(&self.topic, &self.schema, &messages).map(Some)
+        message_batch(&self.topic, &self.schema, &self.value, &messages).map(Some)
     }
 }

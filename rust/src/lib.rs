@@ -19,7 +19,7 @@ pub use backend::{
 };
 pub use fs::{windows, KafkaFs, KafkaFsOptions};
 pub use path::{KafkaPath, MetaFile, Window};
-pub use read::{message_schema, EncodedFile, MessageBatches};
+pub use read::{message_schema, EncodedFile, MessageBatches, ValueFormat};
 pub use records::{RecordIndex, RecordLocation, RECORDS_TOPIC_CONFIG};
 pub use stream::{MessageTail, StreamStart};
 

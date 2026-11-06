@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 import fsspec
 import pandas as pd
+import pyarrow as pa
 import pyarrow.ipc
 import pyarrow.parquet
 import pytest
@@ -58,6 +59,28 @@ def test_reads_topic_snapshots_with_pandas(options, topic):
 
     frame = pd.read_csv(f"kafka://{topic}.csv", storage_options=options)
     assert frame["offset"].tolist() == [0, 1, 2]
+
+
+def test_reads_json_values(options, topic):
+    fs = fsspec.filesystem("kafka", **options)
+    fs.pipe_file(f"{topic}/records/d", b'{"id": 1, "name": "d"}')
+    fs.pipe_file(f"{topic}/records/e", b'{\n  "id": 2,\n  "name": "e"\n}\n')
+    fs.rm_file(f"{topic}/records/d")
+    schema = pa.schema([("id", pa.int64()), ("name", pa.string())])
+    path = f"kafka://{topic}/0.parquet?start=3"
+
+    frame = pd.read_parquet(path, storage_options={**options, "value_format": "json", "value_schema": schema, "flatten_value": True})
+    assert frame["key"].tolist() == [b"d", b"e", b"d"]
+    assert frame["id"].tolist()[:2] == [1, 2]
+    assert frame["name"].tolist()[:2] == ["d", "e"]
+    assert frame["name"].isna().tolist() == [False, False, True]
+
+    with fsspec.open(path, **options, value_format="json", value_schema=schema) as file:
+        values = pyarrow.parquet.read_table(file).column("value").to_pylist()
+    assert values == [{"id": 1, "name": "d"}, {"id": 2, "name": "e"}, None]
+
+    with fsspec.open(f"kafka://{topic}/0.arrow", **options, value_format="json", value_schema=schema) as file, pytest.raises(OSError, match="JSON"):
+        file.read()
 
 
 def test_records_through_open_and_get_mapper(options, topic):

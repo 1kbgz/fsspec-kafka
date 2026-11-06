@@ -11,7 +11,7 @@ use crate::backend::{
     KafkaBackend, MessageOffset, NewMessage, PartitionRange, TopicInfo, Watermarks,
 };
 use crate::path::{KafkaPath, MetaFile, Window};
-use crate::read::{EncodedFile, MessageBatches};
+use crate::read::{message_schema, EncodedFile, MessageBatches, ValueFormat};
 use crate::records::{fetch, record_file, RecordIndex, RecordWriter, RECORDS_TOPIC_CONFIG};
 use crate::stream::{MessageTail, StreamStart};
 
@@ -34,6 +34,8 @@ pub struct KafkaFsOptions {
     pub replication: i32,
     /// Topic configuration for topics created by `mkdir`, such as `retention.ms`.
     pub topic_config: BTreeMap<String, String>,
+    /// How message values are read.
+    pub value_format: ValueFormat,
 }
 
 impl Default for KafkaFsOptions {
@@ -46,6 +48,7 @@ impl Default for KafkaFsOptions {
             partitions: -1,
             replication: -1,
             topic_config: BTreeMap::new(),
+            value_format: ValueFormat::Binary,
         }
     }
 }
@@ -64,6 +67,23 @@ impl<B: KafkaBackend> KafkaFs<B> {
             return Err(FsError::InvalidArgument(
                 "window_size and batch_size must be positive".to_string(),
             ));
+        }
+        if let ValueFormat::Json {
+            schema,
+            flatten: true,
+        } = &options.value_format
+        {
+            let envelope = message_schema(DataFormat::Arrow, &ValueFormat::Binary);
+            if let Some(field) = schema
+                .fields()
+                .iter()
+                .find(|field| envelope.column_with_name(field.name()).is_some())
+            {
+                return Err(FsError::InvalidArgument(format!(
+                    "flattened value field {} conflicts with a message column",
+                    field.name()
+                )));
+            }
         }
         Ok(Self {
             backend: Arc::new(backend),
@@ -120,6 +140,7 @@ impl<B: KafkaBackend> KafkaFs<B> {
         Ok(MessageTail::new(
             topic,
             messages,
+            self.options.value_format.clone(),
             self.options.batch_size,
             positions,
         ))
@@ -332,7 +353,13 @@ impl<B: KafkaBackend> KafkaFs<B> {
             path => return Err(FsError::IsADirectory(path.to_path())),
         };
         let messages = self.backend.read(&topic, ranges)?;
-        let batches = MessageBatches::new(&topic, messages, format, self.options.batch_size);
+        let batches = MessageBatches::new(
+            &topic,
+            messages,
+            format,
+            self.options.value_format.clone(),
+            self.options.batch_size,
+        );
         Ok(Box::new(EncodedFile::new(batches, format, info)?))
     }
 
@@ -707,7 +734,6 @@ mod tests {
     use crate::backend::{
         LiveMessages, Message, MessageOffset, MessageStream, NewMessage, PartitionInfo,
     };
-    use crate::read::message_schema;
 
     type CreatedTopic = (String, i32, i32, BTreeMap<String, String>);
 
@@ -1030,7 +1056,10 @@ mod tests {
                 .collect::<Vec<_>>(),
             [4, 4, 2]
         );
-        assert_eq!(batches[0].schema(), message_schema(DataFormat::Arrow));
+        assert_eq!(
+            batches[0].schema(),
+            message_schema(DataFormat::Arrow, &ValueFormat::Binary)
+        );
         assert_eq!(
             offsets(&read_arrow(&fs, "orders/0/20-.arrow")),
             [20, 21, 22, 23, 24]
@@ -1260,6 +1289,24 @@ mod tests {
             fs.stream("missing", StreamStart::End),
             Err(FsError::NotFound(_))
         ));
+    }
+
+    #[test]
+    fn flattened_values_cannot_shadow_message_columns() {
+        let options = |name| KafkaFsOptions {
+            value_format: ValueFormat::Json {
+                schema: Arc::new(arrow::datatypes::Schema::new(vec![
+                    arrow::datatypes::Field::new(name, arrow::datatypes::DataType::Utf8, true),
+                ])),
+                flatten: true,
+            },
+            ..KafkaFsOptions::default()
+        };
+        assert!(matches!(
+            KafkaFs::new(MockBackend::new(), options("offset")),
+            Err(FsError::InvalidArgument(_))
+        ));
+        assert!(KafkaFs::new(MockBackend::new(), options("id")).is_ok());
     }
 
     #[test]
