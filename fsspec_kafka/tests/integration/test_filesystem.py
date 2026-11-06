@@ -90,3 +90,17 @@ def test_missing_paths_raise_file_not_found(options, topic):
     with pytest.raises(FileNotFoundError):
         fs.info(f"{topic}-missing")
     assert not fs.exists(f"{topic}/records/missing")
+
+
+def test_files_support_raw_io(options, topic):
+    fs = fsspec.filesystem("kafka", **options)
+    with fs.open(f"{topic}/records/f", "wb") as file:
+        assert file.writable() and not file.seekable()
+        file.write(memoryview(b"value"))
+    with fs.open(f"{topic}/records/f") as file:
+        buffer = bytearray(2)
+        assert file.readinto(buffer) == 2 and buffer == b"va"
+        assert file.tell() == 2
+        assert file.readall() == b"lue"
+    with pytest.raises(FileExistsError):
+        fs.makedirs(f"{topic}/records")

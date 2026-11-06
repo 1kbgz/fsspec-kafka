@@ -155,7 +155,7 @@ test-integration:  ## run the env-gated integration tests against running fixtur
 	KAFKA_TEST_KERBEROS_BOOTSTRAP="$(KAFKA_TEST_KERBEROS_BOOTSTRAP)" \
 	KRB5_CONFIG="$(CURDIR)/ci/kerberos/krb5.conf" \
 	KRB5CCNAME="FILE:$(CURDIR)/ci/kerberos/keytabs/client.ccache" \
-	python -m pytest -v fsspec_kafka/tests/integration
+	python -m pytest -v fsspec_kafka/tests/integration --cov=fsspec_kafka --cov-append --cov-report term-missing --cov-report xml
 
 ###########
 # VERSION #
