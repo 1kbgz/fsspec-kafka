@@ -33,6 +33,9 @@ class RustKafkaFs:
         partitions: int = -1,
         replication: int = -1,
         topic_config: dict[str, str] = ...,
+        value_format: str = ...,
+        value_schema: bytes | None = ...,
+        flatten_value: bool = ...,
     ) -> None: ...
     def ls(self, path: str) -> list[dict]: ...
     def info(self, path: str) -> dict: ...

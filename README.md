@@ -24,15 +24,25 @@ frame = pd.read_parquet("kafka://orders.parquet", storage_options=options)
 
 Storage options are librdkafka properties, except for these:
 
-| Option                      | Default   | Meaning                                                   |
-| --------------------------- | --------- | --------------------------------------------------------- |
-| `timeout`                   | `10.0`    | Seconds to wait for broker requests                       |
-| `window_size`               | `10000`   | Offsets per window file                                   |
-| `list_format`               | `"arrow"` | Extension used when listing windows                       |
-| `batch_size`                | `1024`    | Messages per Arrow record batch                           |
-| `allow_admin`               | `False`   | Lets `mkdir` create topics and `rmdir` delete them        |
-| `partitions`, `replication` | `-1`      | Settings for created topics; `-1` uses the broker default |
-| `topic_config`              | `{}`      | Configuration for created topics                          |
+| Option                      | Default    | Meaning                                                   |
+| --------------------------- | ---------- | --------------------------------------------------------- |
+| `timeout`                   | `10.0`     | Seconds to wait for broker requests                       |
+| `window_size`               | `10000`    | Offsets per window file                                   |
+| `list_format`               | `"arrow"`  | Extension used when listing windows                       |
+| `batch_size`                | `1024`     | Messages per Arrow record batch                           |
+| `allow_admin`               | `False`    | Lets `mkdir` create topics and `rmdir` delete them        |
+| `partitions`, `replication` | `-1`       | Settings for created topics; `-1` uses the broker default |
+| `topic_config`              | `{}`       | Configuration for created topics                          |
+| `value_format`              | `"binary"` | `"json"` decodes values with `value_schema`               |
+| `value_schema`              | `None`     | `pyarrow.Schema` of JSON values                           |
+| `flatten_value`             | `False`    | Puts JSON fields beside the message columns               |
+
+Messages are read with `topic`, `partition`, `offset`, `timestamp`, `key`, `headers`, and `value` columns. With `value_format="json"`, `value` is a struct of the `value_schema` fields, which are null for tombstones. `flatten_value=True` puts the fields beside the other columns instead, which CSV needs because it cannot hold structs:
+
+```python
+schema = pa.schema([("id", pa.int64()), ("status", pa.string())])
+frame = pd.read_csv("kafka://orders.csv", storage_options={**options, "value_format": "json", "value_schema": schema, "flatten_value": True})
+```
 
 Options can also come from fsspec configuration, for example `FSSPEC_KAFKA='{"bootstrap.servers": "localhost:9092"}'`.
 

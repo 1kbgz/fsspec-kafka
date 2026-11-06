@@ -3,9 +3,12 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::sync::Mutex;
 use std::time::Duration;
 
+use arrow::ipc::reader::StreamReader;
 use arrow::ipc::writer::StreamWriter;
 use fsspec_data::DataFormat;
-use fsspec_kafka::{KafkaFs, KafkaFsOptions, MessageTail, RdKafkaBackend, StreamStart};
+use fsspec_kafka::{
+    KafkaFs, KafkaFsOptions, MessageTail, RdKafkaBackend, StreamStart, ValueFormat,
+};
 use fsspec_rs::{FileInfo, FileSystem, FileType, FsError, FsFile, OpenMode};
 use pyo3::exceptions::{
     PyFileExistsError, PyFileNotFoundError, PyIsADirectoryError, PyNotADirectoryError,
@@ -225,6 +228,9 @@ impl RustKafkaFs {
         partitions=-1,
         replication=-1,
         topic_config=BTreeMap::new(),
+        value_format="binary",
+        value_schema=None,
+        flatten_value=false,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -238,7 +244,25 @@ impl RustKafkaFs {
         partitions: i32,
         replication: i32,
         topic_config: BTreeMap<String, String>,
+        value_format: &str,
+        value_schema: Option<Vec<u8>>,
+        flatten_value: bool,
     ) -> PyResult<Self> {
+        let value_format = match (value_format, value_schema) {
+            ("binary", None) if !flatten_value => ValueFormat::Binary,
+            ("json", Some(schema)) => ValueFormat::Json {
+                schema: StreamReader::try_new(schema.as_slice(), None)
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?
+                    .schema(),
+                flatten: flatten_value,
+            },
+            _ => {
+                return Err(PyValueError::new_err(
+                    "value_format must be 'binary', or 'json' with a value_schema; \
+                     value_schema and flatten_value apply only to 'json'",
+                ))
+            }
+        };
         let options = KafkaFsOptions {
             window_size,
             list_format: DataFormat::parse(list_format)
@@ -248,6 +272,7 @@ impl RustKafkaFs {
             partitions,
             replication,
             topic_config,
+            value_format,
         };
         let timeout = Duration::try_from_secs_f64(timeout)
             .map_err(|_| PyValueError::new_err("timeout must be a non-negative number"))?;

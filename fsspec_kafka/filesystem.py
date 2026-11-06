@@ -24,6 +24,10 @@ class KafkaFileSystem(AbstractFileSystem):
     Storage options other than the named arguments are librdkafka properties, for example
     ``fsspec.filesystem("kafka", **{"bootstrap.servers": "localhost:9092"})``. They can also
     come from fsspec configuration, such as ``FSSPEC_KAFKA='{"bootstrap.servers": "..."}'``.
+
+    With ``value_format="json"``, values are JSON objects decoded with ``value_schema``, a
+    ``pyarrow.Schema``. Decoded fields are nested in a ``value`` struct column, or placed
+    beside the message columns with ``flatten_value=True``.
     """
 
     protocol = ("kafka",)
@@ -39,6 +43,9 @@ class KafkaFileSystem(AbstractFileSystem):
         partitions=-1,
         replication=-1,
         topic_config=None,
+        value_format="binary",
+        value_schema=None,
+        flatten_value=False,
         **storage_options,
     ):
         super().__init__(**{key: storage_options.pop(key) for key in _FSSPEC_OPTIONS & storage_options.keys()})
@@ -52,6 +59,9 @@ class KafkaFileSystem(AbstractFileSystem):
             partitions=partitions,
             replication=replication,
             topic_config={key: _property(value) for key, value in (topic_config or {}).items()},
+            value_format=value_format,
+            value_schema=None if value_schema is None else _schema_bytes(value_schema),
+            flatten_value=flatten_value,
         )
 
     def ls(self, path, detail=True, **kwargs):
@@ -98,6 +108,14 @@ class KafkaFileSystem(AbstractFileSystem):
         mapping start at the beginning. Partitions added to the topic later are not followed.
         """
         return KafkaStream(self._rust.stream(self._strip_protocol(path), _stream_start(start)))
+
+
+def _schema_bytes(schema):
+    import pyarrow as pa
+
+    sink = pa.BufferOutputStream()
+    pa.ipc.new_stream(sink, schema).close()
+    return sink.getvalue().to_pybytes()
 
 
 def _stream_start(start):

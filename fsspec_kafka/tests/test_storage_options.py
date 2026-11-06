@@ -1,6 +1,7 @@
 import pickle
 
 import fsspec
+import pyarrow as pa
 import pytest
 
 from fsspec_kafka import KafkaFileSystem
@@ -30,8 +31,23 @@ def test_invalid_options_are_rejected():
         KafkaFileSystem(**OPTIONS, window_size=0)
 
 
+@pytest.mark.parametrize(
+    "options",
+    [
+        {"value_format": "json"},
+        {"value_format": "avro", "value_schema": pa.schema([("id", pa.int64())])},
+        {"value_schema": pa.schema([("id", pa.int64())])},
+        {"flatten_value": True},
+        {"value_format": "json", "value_schema": pa.schema([("offset", pa.int64())]), "flatten_value": True},
+    ],
+)
+def test_invalid_value_options_are_rejected(options):
+    with pytest.raises(ValueError):
+        KafkaFileSystem(**OPTIONS, **options)
+
+
 def test_filesystem_pickles_from_its_options():
-    fs = KafkaFileSystem(**OPTIONS, window_size=100)
+    fs = KafkaFileSystem(**OPTIONS, window_size=100, value_format="json", value_schema=pa.schema([("id", pa.int64())]))
     assert pickle.loads(pickle.dumps(fs)).storage_options == fs.storage_options
 
 
