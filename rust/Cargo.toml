@@ -15,6 +15,7 @@ crate-type = ["rlib"]
 
 [dependencies]
 arrow = { version = "54.3.1", features = ["chrono-tz"] }
+chrono = { version = "0.4", default-features = false, features = ["alloc"] }
 fsspec_data = "0.3.0"
 fsspec_rs = "0.1.5"
 futures-executor = "0.3"

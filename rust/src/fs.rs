@@ -147,6 +147,28 @@ impl<B: KafkaBackend> KafkaFs<B> {
                     }],
                 )
             }
+            KafkaPath::TimeRead {
+                topic,
+                partition,
+                timestamp_ms,
+                format,
+            } => {
+                let marks = self.backend.watermarks(&topic, partition)?;
+                // Timestamps need not increase with offsets, so later messages may be older.
+                let start = self
+                    .backend
+                    .offset_for_time(&topic, partition, timestamp_ms)?
+                    .map_or(marks.high, |start| start.clamp(marks.low, marks.high));
+                (
+                    topic,
+                    format,
+                    vec![PartitionRange {
+                        partition,
+                        start,
+                        end: marks.high,
+                    }],
+                )
+            }
             KafkaPath::TopicSnapshot { topic, format } => {
                 let ranges = self
                     .backend
@@ -236,6 +258,12 @@ impl<B: KafkaBackend> KafkaFs<B> {
                 Ok(window_file(topic, *partition, *window, *format, marks))
             }
             KafkaPath::PartitionRead {
+                topic,
+                partition,
+                format,
+                ..
+            }
+            | KafkaPath::TimeRead {
                 topic,
                 partition,
                 format,
@@ -477,8 +505,16 @@ mod tests {
             Ok(self.marks[&(topic.to_string(), partition)])
         }
 
-        fn offset_for_time(&self, _: &str, _: i32, _: i64) -> FsResult<Option<i64>> {
-            Ok(None)
+        /// Matches `read`, where the message at `offset` has timestamp `1_000 + offset`.
+        fn offset_for_time(
+            &self,
+            topic: &str,
+            partition: i32,
+            timestamp_ms: i64,
+        ) -> FsResult<Option<i64>> {
+            let marks = self.watermarks(topic, partition)?;
+            let offset = (timestamp_ms - 1_000).max(marks.low);
+            Ok((offset < marks.high).then_some(offset))
         }
 
         fn topic_config(&self, _topic: &str) -> FsResult<BTreeMap<String, String>> {
@@ -731,6 +767,31 @@ mod tests {
         assert_eq!(offsets(&read_arrow(&fs, "orders/0.arrow?limit=2")), [0, 1]);
         assert!(read_arrow(&fs, "orders/0.arrow?start=99").is_empty());
         assert!(read_arrow(&fs, "orders/1.arrow").is_empty());
+    }
+
+    #[test]
+    fn time_reads_start_at_the_first_later_message() {
+        let fs = fs();
+        let at = |ms| {
+            KafkaPath::TimeRead {
+                topic: "orders".into(),
+                partition: 0,
+                timestamp_ms: ms,
+                format: DataFormat::Arrow,
+            }
+            .to_path()
+        };
+        assert_eq!(offsets(&read_arrow(&fs, &at(1_022))), [22, 23, 24]);
+        assert_eq!(
+            offsets(&read_arrow(&fs, &at(0))),
+            (0..25).collect::<Vec<_>>()
+        );
+        assert!(read_arrow(&fs, &at(1_025)).is_empty());
+        assert!(fs.info(&at(0)).unwrap().is_file());
+        assert!(matches!(
+            fs.info("orders/9/@2026-11-01T00:00:00Z.arrow"),
+            Err(FsError::NotFound(_))
+        ));
     }
 
     #[test]

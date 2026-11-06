@@ -1,3 +1,4 @@
+use chrono::{DateTime, SecondsFormat};
 use fsspec_data::DataFormat;
 use fsspec_rs::{FsError, FsResult};
 
@@ -64,6 +65,14 @@ pub enum KafkaPath {
         start: Option<i64>,
         limit: Option<u64>,
     },
+    /// `topic/partition/@timestamp.format`: messages from the earliest offset whose
+    /// timestamp is at or after `timestamp_ms`. The timestamp is RFC 3339.
+    TimeRead {
+        topic: String,
+        partition: i32,
+        timestamp_ms: i64,
+        format: DataFormat,
+    },
     /// `topic.format`: every partition of the topic.
     TopicSnapshot {
         topic: String,
@@ -112,6 +121,17 @@ impl KafkaPath {
                     partition_id(name).ok_or_else(|| invalid(path))?,
                 ),
             },
+            [topic, partition, name] if name.starts_with('@') => {
+                let (timestamp_ms, format) = split_format(&name[1..])
+                    .and_then(|(time, format)| Some((parse_time(time)?, format)))
+                    .ok_or_else(|| invalid(path))?;
+                Self::TimeRead {
+                    topic: topic_name(topic)?,
+                    partition: partition_id(partition).ok_or_else(|| invalid(path))?,
+                    timestamp_ms,
+                    format,
+                }
+            }
             [topic, partition, name] => {
                 let (window, format) = split_format(name)
                     .and_then(|(range, format)| Some((parse_window(range)?, format)))
@@ -167,6 +187,17 @@ impl KafkaPath {
                 } else {
                     format!("{path}?{query}")
                 }
+            }
+            Self::TimeRead {
+                topic,
+                partition,
+                timestamp_ms,
+                format,
+            } => {
+                let time = DateTime::from_timestamp_millis(*timestamp_ms)
+                    .expect("parsed timestamps are in range")
+                    .to_rfc3339_opts(SecondsFormat::AutoSi, true);
+                format!("{topic}/{partition}/@{time}.{}", format.as_str())
             }
             Self::TopicSnapshot { topic, format } => format!("{topic}.{}", format.as_str()),
         }
@@ -233,6 +264,12 @@ fn parse_window(range: &str) -> Option<Window> {
         return None;
     }
     Some(Window { start, end })
+}
+
+fn parse_time(value: &str) -> Option<i64> {
+    DateTime::parse_from_rfc3339(value)
+        .ok()
+        .map(|time| time.timestamp_millis())
 }
 
 fn parse_query(query: &str) -> FsResult<(Option<i64>, Option<u64>)> {
@@ -341,6 +378,32 @@ mod tests {
     }
 
     #[test]
+    fn parses_time_reads() {
+        let read = |timestamp_ms| KafkaPath::TimeRead {
+            topic: "orders".into(),
+            partition: 0,
+            timestamp_ms,
+            format: DataFormat::Arrow,
+        };
+        round_trip(
+            "orders/0/@2026-11-01T00:00:00Z.arrow",
+            read(1_793_491_200_000),
+        );
+        round_trip(
+            "orders/0/@2026-11-01T00:00:00.250Z.arrow",
+            read(1_793_491_200_250),
+        );
+        assert_eq!(
+            KafkaPath::parse("orders/0/@2026-11-01T02:00:00+02:00.arrow").unwrap(),
+            read(1_793_491_200_000)
+        );
+        assert_eq!(
+            read(1_793_491_200_000).to_path(),
+            "orders/0/@2026-11-01T00:00:00Z.arrow"
+        );
+    }
+
+    #[test]
     fn accepts_extension_aliases() {
         assert_eq!(
             KafkaPath::parse("orders.ndjson").unwrap(),
@@ -363,6 +426,10 @@ mod tests {
             "orders/0/a-b.arrow",
             "orders/0/10-20.txt",
             "orders/0/10-20.arrow/extra",
+            "orders/0/@.arrow",
+            "orders/0/@2026-11-01.arrow",
+            "orders/0/@2026-11-01T00:00:00Z.txt",
+            "orders/0/@2026-11-01T00:00:00Z.arrow?limit=1",
             "orders?start=1",
             "orders/0.arrow?offset=1",
             "orders/0.arrow?limit=-1",
