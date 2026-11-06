@@ -3,8 +3,9 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::sync::Mutex;
 use std::time::Duration;
 
+use arrow::ipc::writer::StreamWriter;
 use fsspec_data::DataFormat;
-use fsspec_kafka::{KafkaFs, KafkaFsOptions, RdKafkaBackend};
+use fsspec_kafka::{KafkaFs, KafkaFsOptions, MessageTail, RdKafkaBackend, StreamStart};
 use fsspec_rs::{FileInfo, FileSystem, FileType, FsError, FsFile, OpenMode};
 use pyo3::exceptions::{
     PyFileExistsError, PyFileNotFoundError, PyIsADirectoryError, PyNotADirectoryError,
@@ -144,6 +145,66 @@ impl RustKafkaFile {
     }
 }
 
+/// Where a stream starts: `"beginning"`, `"end"`, milliseconds since the epoch, or the
+/// next offset of each partition.
+#[derive(FromPyObject)]
+enum Start {
+    Offsets(BTreeMap<i32, i64>),
+    Time(i64),
+    Name(String),
+}
+
+/// Messages from followed partitions. Each batch is an Arrow IPC stream.
+#[pyclass(name = "RustKafkaStream")]
+pub struct RustKafkaStream {
+    inner: Mutex<Option<MessageTail>>,
+}
+
+#[pymethods]
+impl RustKafkaStream {
+    /// Waits up to `timeout` seconds for messages and returns them as one record batch in
+    /// an Arrow IPC stream, or `None` when none arrived.
+    fn poll(&self, py: Python<'_>, timeout: f64) -> PyResult<Option<Vec<u8>>> {
+        let timeout = Duration::try_from_secs_f64(timeout)
+            .map_err(|_| PyValueError::new_err("timeout must be a non-negative number"))?;
+        py.detach(|| {
+            let mut guard = self.inner.lock().unwrap();
+            let tail = guard
+                .as_mut()
+                .ok_or_else(|| PyValueError::new_err("stream is closed"))?;
+            let Some(batch) = tail.poll(timeout).map_err(fs_error)? else {
+                return Ok(None);
+            };
+            let mut writer = StreamWriter::try_new(Vec::new(), &tail.schema())
+                .map_err(|e| PyOSError::new_err(e.to_string()))?;
+            writer
+                .write(&batch)
+                .and_then(|_| writer.into_inner())
+                .map(Some)
+                .map_err(|e| PyOSError::new_err(e.to_string()))
+        })
+    }
+
+    /// The next offset to read in each partition.
+    #[getter]
+    fn positions(&self) -> PyResult<BTreeMap<i32, i64>> {
+        let guard = self.inner.lock().unwrap();
+        let tail = guard
+            .as_ref()
+            .ok_or_else(|| PyValueError::new_err("stream is closed"))?;
+        Ok(tail.positions().clone())
+    }
+
+    fn close(&self) {
+        self.inner.lock().unwrap().take();
+    }
+
+    #[getter]
+    fn closed(&self) -> bool {
+        self.inner.lock().unwrap().is_none()
+    }
+}
+
 /// `KafkaFs` over librdkafka.
 #[pyclass(name = "RustKafkaFs")]
 pub struct RustKafkaFs {
@@ -244,6 +305,28 @@ impl RustKafkaFs {
 
     fn mkdir(&self, py: Python<'_>, path: &str) -> PyResult<()> {
         py.detach(|| self.inner.mkdir(path, true)).map_err(fs_error)
+    }
+
+    fn stream(&self, py: Python<'_>, path: &str, start: Start) -> PyResult<RustKafkaStream> {
+        let start = match start {
+            Start::Offsets(offsets) => StreamStart::Offsets(offsets),
+            Start::Time(timestamp_ms) => StreamStart::Time(timestamp_ms),
+            Start::Name(name) => match name.as_str() {
+                "beginning" => StreamStart::Beginning,
+                "end" => StreamStart::End,
+                _ => {
+                    return Err(PyValueError::new_err(format!(
+                        "start must be \"beginning\" or \"end\", not {name:?}"
+                    )))
+                }
+            },
+        };
+        let tail = py
+            .detach(|| self.inner.stream(path, start))
+            .map_err(fs_error)?;
+        Ok(RustKafkaStream {
+            inner: Mutex::new(Some(tail)),
+        })
     }
 
     fn rmdir(&self, py: Python<'_>, path: &str) -> PyResult<()> {

@@ -7,10 +7,13 @@ use fsspec_data::DataFormat;
 use fsspec_rs::{FileInfo, FileSystem, FsError, FsFile, FsResult, OpenMode, OpenOptions};
 use serde_json::json;
 
-use crate::backend::{KafkaBackend, NewMessage, PartitionRange, TopicInfo, Watermarks};
+use crate::backend::{
+    KafkaBackend, MessageOffset, NewMessage, PartitionRange, TopicInfo, Watermarks,
+};
 use crate::path::{KafkaPath, MetaFile, Window};
 use crate::read::{EncodedFile, MessageBatches};
 use crate::records::{fetch, record_file, RecordIndex, RecordWriter, RECORDS_TOPIC_CONFIG};
+use crate::stream::{MessageTail, StreamStart};
 
 const PROTOCOLS: &[&str] = &["kafka"];
 
@@ -71,6 +74,55 @@ impl<B: KafkaBackend> KafkaFs<B> {
 
     pub fn backend(&self) -> &B {
         self.backend.as_ref()
+    }
+
+    /// Follows a topic or one partition from `start`, including messages produced later.
+    /// Start offsets are clamped to each partition's watermarks. Partitions added to the
+    /// topic afterwards are not followed.
+    pub fn stream(&self, path: &str, start: StreamStart) -> FsResult<MessageTail> {
+        let (topic, partitions) = match self.resolve(path)? {
+            KafkaPath::Topic(topic) => {
+                let info = self.backend.topic(&topic)?;
+                let ids = info.partitions.iter().map(|p| p.id).collect::<Vec<_>>();
+                (topic, ids)
+            }
+            KafkaPath::Partition(topic, partition) => {
+                self.partition(&topic, partition)?;
+                (topic, vec![partition])
+            }
+            _ => {
+                return Err(FsError::InvalidArgument(format!(
+                    "only topics and partitions can be streamed: {path}"
+                )))
+            }
+        };
+        let mut positions = BTreeMap::new();
+        for partition in partitions {
+            let marks = self.backend.watermarks(&topic, partition)?;
+            let offset = match &start {
+                StreamStart::Beginning => marks.low,
+                StreamStart::End => marks.high,
+                StreamStart::Time(timestamp_ms) => self
+                    .backend
+                    .offset_for_time(&topic, partition, *timestamp_ms)?
+                    .unwrap_or(marks.high),
+                StreamStart::Offsets(offsets) => {
+                    offsets.get(&partition).copied().unwrap_or(marks.low)
+                }
+            };
+            positions.insert(partition, offset.clamp(marks.low, marks.high));
+        }
+        let starts = positions
+            .iter()
+            .map(|(&partition, &offset)| MessageOffset { partition, offset })
+            .collect();
+        let messages = self.backend.follow(&topic, starts)?;
+        Ok(MessageTail::new(
+            topic,
+            messages,
+            self.options.batch_size,
+            positions,
+        ))
     }
 
     /// Parses `path`, treating `name.format` as a topic directory when a topic has that
@@ -650,7 +702,11 @@ mod tests {
     use arrow::ipc::reader::StreamReader;
 
     use super::*;
-    use crate::backend::{Message, MessageOffset, MessageStream, NewMessage, PartitionInfo};
+    use std::time::Duration;
+
+    use crate::backend::{
+        LiveMessages, Message, MessageOffset, MessageStream, NewMessage, PartitionInfo,
+    };
     use crate::read::message_schema;
 
     type CreatedTopic = (String, i32, i32, BTreeMap<String, String>);
@@ -774,6 +830,34 @@ mod tests {
                 .collect::<Vec<_>>();
             assert!(self.topics.iter().any(|t| t.name == topic));
             Ok(Box::new(messages.into_iter()))
+        }
+
+        /// The messages `read` returns up to the high watermark; nothing arrives later.
+        fn follow(
+            &self,
+            topic: &str,
+            starts: Vec<MessageOffset>,
+        ) -> FsResult<Box<dyn LiveMessages>> {
+            let ranges = starts
+                .into_iter()
+                .map(|start| {
+                    let marks = self.watermarks(topic, start.partition)?;
+                    Ok(PartitionRange {
+                        partition: start.partition,
+                        start: start.offset,
+                        end: marks.high,
+                    })
+                })
+                .collect::<FsResult<Vec<_>>>()?;
+            Ok(Box::new(RecordedMessages(self.read(topic, ranges)?)))
+        }
+    }
+
+    struct RecordedMessages(MessageStream);
+
+    impl LiveMessages for RecordedMessages {
+        fn poll(&mut self, _timeout: Duration) -> FsResult<Option<Message>> {
+            self.0.next().transpose()
         }
     }
 
@@ -1107,6 +1191,75 @@ mod tests {
                 "{path}"
             );
         }
+    }
+
+    fn stream_offsets(fs: &KafkaFs<MockBackend>, path: &str, start: StreamStart) -> Vec<i64> {
+        let mut tail = fs.stream(path, start).unwrap();
+        let mut offsets = Vec::new();
+        while let Some(batch) = tail.poll(Duration::ZERO).unwrap() {
+            assert_eq!(batch.schema(), tail.schema());
+            offsets.extend(batch.column(2).as_primitive::<Int64Type>().values());
+        }
+        offsets
+    }
+
+    #[test]
+    fn streams_start_where_asked() {
+        let fs = fs();
+        assert_eq!(
+            stream_offsets(&fs, "orders/0", StreamStart::Beginning),
+            (0..25).collect::<Vec<_>>()
+        );
+        assert!(stream_offsets(&fs, "orders", StreamStart::End).is_empty());
+        assert_eq!(
+            stream_offsets(&fs, "kafka://orders/0", StreamStart::Time(1_020)),
+            (20..25).collect::<Vec<_>>()
+        );
+        // Offsets are clamped to the watermarks, and missing partitions start at the beginning.
+        assert_eq!(
+            stream_offsets(
+                &fs,
+                "orders",
+                StreamStart::Offsets(BTreeMap::from([(0, 23), (1, 100)]))
+            ),
+            vec![23, 24]
+        );
+        assert_eq!(
+            stream_offsets(&fs, "events.csv", StreamStart::Offsets(BTreeMap::new())),
+            (0..20).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn stream_positions_follow_returned_messages() {
+        let fs = fs();
+        let mut tail = fs.stream("orders", StreamStart::Time(1_010)).unwrap();
+        assert_eq!(tail.positions(), &BTreeMap::from([(0, 10), (1, 7)]));
+        // Batches hold at most `batch_size` messages.
+        let batch = tail.poll(Duration::ZERO).unwrap().unwrap();
+        assert_eq!(batch.num_rows(), 4);
+        assert_eq!(tail.positions(), &BTreeMap::from([(0, 14), (1, 7)]));
+        while tail.poll(Duration::ZERO).unwrap().is_some() {}
+        assert_eq!(tail.positions(), &BTreeMap::from([(0, 25), (1, 7)]));
+    }
+
+    #[test]
+    fn only_topics_and_partitions_stream() {
+        let fs = fs();
+        for path in ["", "orders/_meta", "orders/0/0-10.arrow", "orders/records"] {
+            assert!(matches!(
+                fs.stream(path, StreamStart::End),
+                Err(FsError::InvalidArgument(_))
+            ));
+        }
+        assert!(matches!(
+            fs.stream("orders/5", StreamStart::End),
+            Err(FsError::NotFound(_))
+        ));
+        assert!(matches!(
+            fs.stream("missing", StreamStart::End),
+            Err(FsError::NotFound(_))
+        ));
     }
 
     #[test]

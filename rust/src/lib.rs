@@ -11,15 +11,17 @@ mod fs;
 mod path;
 mod read;
 mod records;
+mod stream;
 
 pub use backend::{
-    KafkaBackend, Message, MessageOffset, MessageStream, NewMessage, PartitionInfo, PartitionRange,
-    RdKafkaBackend, TopicInfo, Watermarks,
+    KafkaBackend, LiveMessages, Message, MessageOffset, MessageStream, NewMessage, PartitionInfo,
+    PartitionRange, RdKafkaBackend, TopicInfo, Watermarks,
 };
 pub use fs::{windows, KafkaFs, KafkaFsOptions};
 pub use path::{KafkaPath, MetaFile, Window};
 pub use read::{message_schema, EncodedFile, MessageBatches};
 pub use records::{RecordIndex, RecordLocation, RECORDS_TOPIC_CONFIG};
+pub use stream::{MessageTail, StreamStart};
 
 /// Version of the linked librdkafka.
 pub fn librdkafka_version() -> String {

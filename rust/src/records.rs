@@ -303,7 +303,7 @@ mod tests {
 
     use super::*;
     use crate::backend::{
-        Message, MessageOffset, MessageStream, PartitionInfo, TopicInfo, Watermarks,
+        LiveMessages, Message, MessageOffset, MessageStream, PartitionInfo, TopicInfo, Watermarks,
     };
     use crate::fs::{KafkaFs, KafkaFsOptions};
 
@@ -403,6 +403,14 @@ mod tests {
                 }
             }
             Ok(Box::new(messages.into_iter()))
+        }
+
+        fn follow(
+            &self,
+            topic: &str,
+            _starts: Vec<MessageOffset>,
+        ) -> FsResult<Box<dyn LiveMessages>> {
+            Err(FsError::NotSupported(topic.into()))
         }
 
         fn produce(&self, topic: &str, messages: Vec<NewMessage>) -> FsResult<Vec<MessageOffset>> {

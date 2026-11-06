@@ -1,10 +1,12 @@
 import io
+from collections.abc import Mapping
+from datetime import datetime
 
 from fsspec import AbstractFileSystem
 
 from .fsspec_kafka import RustKafkaFs
 
-__all__ = ("KafkaFile", "KafkaFileSystem")
+__all__ = ("KafkaFile", "KafkaFileSystem", "KafkaStream")
 
 # Storage options handled by AbstractFileSystem rather than librdkafka.
 _FSSPEC_OPTIONS = frozenset({"use_listings_cache", "listings_expiry_time", "max_paths", "asynchronous", "loop"})
@@ -85,6 +87,76 @@ class KafkaFileSystem(AbstractFileSystem):
 
     def rmdir(self, path):
         self._rust.rmdir(self._strip_protocol(path))
+
+    def stream(self, path, start="end"):
+        """Follow a topic or one partition, including messages produced later.
+
+        ``start`` is ``"end"`` for new messages only, ``"beginning"`` for every retained
+        message, a ``datetime`` or ISO 8601 string for the first message at or after that
+        time, or a mapping from partition to the next offset to read, such as
+        ``KafkaStream.positions`` saved from an earlier stream. Partitions left out of the
+        mapping start at the beginning. Partitions added to the topic later are not followed.
+        """
+        return KafkaStream(self._rust.stream(self._strip_protocol(path), _stream_start(start)))
+
+
+def _stream_start(start):
+    if isinstance(start, Mapping):
+        return {int(partition): int(offset) for partition, offset in start.items()}
+    if isinstance(start, str) and start not in ("beginning", "end"):
+        start = datetime.fromisoformat(start)
+    if isinstance(start, datetime):
+        return int(start.timestamp() * 1000)
+    if start not in ("beginning", "end"):
+        raise TypeError(f"start must be 'beginning', 'end', a datetime, or a mapping of partition offsets, not {start!r}")
+    return start
+
+
+class KafkaStream:
+    """Messages from followed partitions as ``pyarrow.RecordBatch`` objects, with the same
+    columns as ``.arrow`` files. Iterating waits for messages and never ends; ``poll``
+    returns ``None`` when nothing arrives in time."""
+
+    def __init__(self, stream):
+        import pyarrow.ipc
+
+        self._ipc = pyarrow.ipc
+        self._stream = stream
+
+    @property
+    def positions(self):
+        """The next offset to read in each partition. Pass these as ``start`` to resume."""
+        return self._stream.positions
+
+    @property
+    def closed(self):
+        return self._stream.closed
+
+    def poll(self, timeout=None):
+        """Wait up to ``timeout`` seconds, or indefinitely when ``None``, for messages and
+        return them as one record batch, or ``None`` when none arrived."""
+        while True:
+            # Short waits return to Python, so KeyboardInterrupt is handled promptly.
+            data = self._stream.poll(0.2 if timeout is None else timeout)
+            if data is not None:
+                return self._ipc.open_stream(data).read_next_batch()
+            if timeout is not None:
+                return None
+
+    def close(self):
+        self._stream.close()
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return self.poll()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
 
 class KafkaFile(io.RawIOBase):

@@ -11,7 +11,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use fsspec_data::DataFormat;
 use fsspec_kafka::{
-    KafkaBackend, KafkaFs, KafkaFsOptions, MessageOffset, NewMessage, RdKafkaBackend,
+    KafkaBackend, KafkaFs, KafkaFsOptions, MessageOffset, MessageTail, NewMessage, RdKafkaBackend,
+    StreamStart,
 };
 use fsspec_rs::{FileSystem, FsError, OpenMode};
 use rdkafka::admin::{AdminClient, AdminOptions, NewTopic, TopicReplication};
@@ -723,4 +724,61 @@ fn records_refuse_topics_with_time_retention() {
         Err(FsError::NotSupported(_))
     ));
     assert_eq!(fs.backend().watermarks(&topic.name, 0).unwrap().high, 0);
+}
+
+/// Polls until `count` messages arrive, returning their (partition, offset) pairs.
+fn poll_messages(tail: &mut MessageTail, count: usize) -> Vec<(i32, i64)> {
+    let mut messages = Vec::new();
+    let deadline = std::time::Instant::now() + TIMEOUT;
+    while messages.len() < count {
+        assert!(std::time::Instant::now() < deadline, "got {messages:?}");
+        if let Some(batch) = tail.poll(Duration::from_millis(100)).unwrap() {
+            let partitions = batch.column_by_name("partition").unwrap();
+            let offsets = batch.column_by_name("offset").unwrap();
+            messages.extend(
+                partitions
+                    .as_primitive::<arrow::datatypes::Int32Type>()
+                    .values()
+                    .iter()
+                    .copied()
+                    .zip(offsets.as_primitive::<Int64Type>().values().iter().copied()),
+            );
+        }
+    }
+    messages
+}
+
+#[test]
+fn streams_follow_new_messages_and_resume() {
+    let Some(bootstrap) = bootstrap() else { return };
+    let topic = Topic::create(&bootstrap, 2, 0);
+    topic.produce(0, 3);
+    let fs = filesystem(&bootstrap);
+
+    let mut tail = fs.stream(&topic.name, StreamStart::End).unwrap();
+    assert_eq!(tail.positions(), &BTreeMap::from([(0, 3), (1, 0)]));
+    assert!(tail.poll(Duration::from_millis(500)).unwrap().is_none());
+    topic.produce(1, 2);
+    topic.produce(0, 1);
+    let mut messages = poll_messages(&mut tail, 3);
+    messages.sort();
+    assert_eq!(messages, vec![(0, 3), (1, 0), (1, 1)]);
+    assert_eq!(tail.positions(), &BTreeMap::from([(0, 4), (1, 2)]));
+
+    // A new stream from the saved positions starts after the last message seen.
+    let positions = tail.positions().clone();
+    drop(tail);
+    topic.produce(1, 1);
+    let mut resumed = fs
+        .stream(&topic.name, StreamStart::Offsets(positions))
+        .unwrap();
+    assert_eq!(poll_messages(&mut resumed, 1), vec![(1, 2)]);
+
+    let mut from_start = fs
+        .stream(&format!("{}/0", topic.name), StreamStart::Beginning)
+        .unwrap();
+    assert_eq!(
+        poll_messages(&mut from_start, 4),
+        (0..4).map(|offset| (0, offset)).collect::<Vec<_>>()
+    );
 }

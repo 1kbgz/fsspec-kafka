@@ -33,3 +33,10 @@ def test_invalid_options_are_rejected():
 def test_filesystem_pickles_from_its_options():
     fs = KafkaFileSystem(**OPTIONS, window_size=100)
     assert pickle.loads(pickle.dumps(fs)).storage_options == fs.storage_options
+
+
+@pytest.mark.parametrize("start", ["latest", 5, None])
+def test_invalid_stream_starts_are_rejected(start):
+    fs = KafkaFileSystem(**OPTIONS)
+    with pytest.raises((TypeError, ValueError)):
+        fs.stream("orders", start=start)
