@@ -87,6 +87,18 @@ jobs:
         run: make coverage
         if: matrix.target == 'native'
 
+      - name: Install Kerberos client
+        run: sudo apt-get update && sudo apt-get install -y krb5-user
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        if: matrix.name == 'ubuntu-24.04'
+
+      - name: Integration tests
+        run: |
+          make kafka-up kafka-wait COMPOSE="docker compose"
+          make test-integration
+        if: matrix.name == 'ubuntu-24.04'
+
       - name: Build and test Pyodide wheel
         run: make test-pyodide
         if: matrix.target == 'pyodide'

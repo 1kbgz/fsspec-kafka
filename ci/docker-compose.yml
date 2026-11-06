@@ -1,0 +1,67 @@
+# Local Kafka fixtures for fsspec-kafka integration tests.
+#
+# Works with both `podman-compose` (default) and `docker compose`. Bring the
+# stack up with `make kafka-up` and run the env-gated integration tests with
+# `make test-integration`. Non-default host ports avoid clashing with a local
+# Kafka.
+#
+#   FSSPEC_KAFKA_BOOTSTRAP=127.0.0.1:59092             Redpanda, PLAINTEXT
+#   FSSPEC_KAFKA_KERBEROS_BOOTSTRAP=localhost:59094    Apache Kafka, SASL GSSAPI
+#
+# The Kerberos client uses ci/kerberos/krb5.conf and the client keytab written
+# to ci/kerberos/keytabs by the KDC.
+
+services:
+  redpanda:
+    image: docker.io/redpandadata/redpanda:v25.2.1
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://127.0.0.1:59092
+    ports:
+      - "127.0.0.1:59092:9092"
+
+  kdc:
+    build: ./kerberos
+    volumes:
+      - ./kerberos/keytabs:/keytabs
+    ports:
+      - "127.0.0.1:58088:88"
+      - "127.0.0.1:58088:88/udp"
+    healthcheck:
+      test: ["CMD", "test", "-f", "/keytabs/client.keytab"]
+      interval: 1s
+      timeout: 5s
+      retries: 30
+
+  kafka-kerberos:
+    image: docker.io/apache/kafka:4.1.0
+    depends_on:
+      kdc:
+        condition: service_healthy
+    volumes:
+      - ./kerberos/keytabs:/keytabs:ro
+      - ./kerberos/krb5-broker.conf:/etc/kafka/krb5.conf:ro
+    ports:
+      - "127.0.0.1:59094:9094"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENERS: INTERNAL://:9092,CONTROLLER://:9093,KERBEROS://:9094
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka-kerberos:9092,KERBEROS://localhost:59094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,KERBEROS:SASL_PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_SASL_ENABLED_MECHANISMS: GSSAPI
+      KAFKA_SASL_KERBEROS_SERVICE_NAME: kafka
+      KAFKA_LISTENER_NAME_KERBEROS_GSSAPI_SASL_JAAS_CONFIG: >-
+        com.sun.security.auth.module.Krb5LoginModule required useKeyTab=true storeKey=true
+        keyTab="/keytabs/kafka.keytab" principal="kafka/localhost@FSSPEC.TEST";
+      KAFKA_OPTS: -Djava.security.krb5.conf=/etc/kafka/krb5.conf
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
