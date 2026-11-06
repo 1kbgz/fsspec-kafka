@@ -110,6 +110,11 @@
 </ul>
     </details>
   </li>
+  <li class="fd-tree-item">
+    <a class="fd-link" href="../test_brokers/index.html">
+      <span class="fd-link-text">test_brokers</span>
+    </a>
+  </li>
 </ul>
     </details>
   </li>
@@ -138,13 +143,19 @@
     <a href="#submodules">Submodules</a>
   </li>
   <li class="fd-toc-item" data-depth="1">
-    <a href="#attributes">Attributes</a>
+    <a href="#functions">Functions</a>
   </li>
   <li class="fd-toc-item" data-depth="1">
     <a href="#package-contents">Package Contents</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
-    <a href="#fsspec_kafka.__version__">__version__</a>
+    <a href="#fsspec_kafka.builtin_features">builtin_features()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#fsspec_kafka.librdkafka_version">librdkafka_version()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#fsspec_kafka.list_topics">list_topics()</a>
   </li>
 </ul>
 </div>
@@ -172,11 +183,17 @@
 </ul>
 </div>
 </section>
-<section id="attributes">
-<h2>Attributes<a class="headerlink" href="#attributes" title="Link to this heading">¶</a></h2>
+<section id="functions">
+<h2>Functions<a class="headerlink" href="#functions" title="Link to this heading">¶</a></h2>
 <table class="autosummary longtable docutils align-default">
 <tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#fsspec_kafka.__version__" title="fsspec_kafka.__version__"><code class="xref py py-obj docutils literal notranslate"><span class="pre">__version__</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#fsspec_kafka.builtin_features" title="fsspec_kafka.builtin_features"><code class="xref py py-obj docutils literal notranslate"><span class="pre">builtin_features</span></code></a>() → list[str]</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#fsspec_kafka.librdkafka_version" title="fsspec_kafka.librdkafka_version"><code class="xref py py-obj docutils literal notranslate"><span class="pre">librdkafka_version</span></code></a>() → str</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#fsspec_kafka.list_topics" title="fsspec_kafka.list_topics"><code class="xref py py-obj docutils literal notranslate"><span class="pre">list_topics</span></code></a>(config[, timeout]) → list[str]</p></td>
 <td><p></p></td>
 </tr>
 </tbody>
@@ -184,9 +201,19 @@
 </section>
 <section id="package-contents">
 <h2>Package Contents<a class="headerlink" href="#package-contents" title="Link to this heading">¶</a></h2>
-<dl class="py data">
-<dt class="sig sig-object py" id="fsspec_kafka.__version__">
-<span class="sig-prename descclassname"><span class="pre">fsspec_kafka.</span></span><span class="sig-name descname"><span class="pre">__version__</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'0.1.0'</span></em><a class="headerlink" href="#fsspec_kafka.__version__" title="Link to this definition">¶</a></dt>
+<dl class="py function">
+<dt class="sig sig-object py" id="fsspec_kafka.builtin_features">
+<span class="sig-prename descclassname"><span class="pre">fsspec_kafka.</span></span><span class="sig-name descname"><span class="pre">builtin_features</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#fsspec_kafka.builtin_features" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="fsspec_kafka.librdkafka_version">
+<span class="sig-prename descclassname"><span class="pre">fsspec_kafka.</span></span><span class="sig-name descname"><span class="pre">librdkafka_version</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#fsspec_kafka.librdkafka_version" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="fsspec_kafka.list_topics">
+<span class="sig-prename descclassname"><span class="pre">fsspec_kafka.</span></span><span class="sig-name descname"><span class="pre">list_topics</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10.0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#fsspec_kafka.list_topics" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </section>
@@ -229,13 +256,19 @@
     <a href="#submodules">Submodules</a>
   </li>
   <li class="fd-toc-item" data-depth="1">
-    <a href="#attributes">Attributes</a>
+    <a href="#functions">Functions</a>
   </li>
   <li class="fd-toc-item" data-depth="1">
     <a href="#package-contents">Package Contents</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
-    <a href="#fsspec_kafka.__version__">__version__</a>
+    <a href="#fsspec_kafka.builtin_features">builtin_features()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#fsspec_kafka.librdkafka_version">librdkafka_version()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#fsspec_kafka.list_topics">list_topics()</a>
   </li>
 </ul>
 

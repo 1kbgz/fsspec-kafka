@@ -1,0 +1,38 @@
+test_brokers
+============
+
+.. py:module:: test_brokers
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   test_brokers.BOOTSTRAP
+   test_brokers.KERBEROS_BOOTSTRAP
+   test_brokers.KEYTAB
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   test_brokers.test_plaintext_list_topics
+   test_brokers.test_kerberos_list_topics
+
+
+Module Contents
+---------------
+
+.. py:data:: BOOTSTRAP
+
+.. py:data:: KERBEROS_BOOTSTRAP
+
+.. py:data:: KEYTAB
+
+.. py:function:: test_plaintext_list_topics()
+
+.. py:function:: test_kerberos_list_topics()
+

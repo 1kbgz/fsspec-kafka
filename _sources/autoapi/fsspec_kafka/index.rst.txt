@@ -13,18 +13,22 @@ Submodules
    /autoapi/fsspec_kafka/fsspec_kafka/index
 
 
-Attributes
-----------
+Functions
+---------
 
 .. autoapisummary::
 
-   fsspec_kafka.__version__
+   fsspec_kafka.builtin_features
+   fsspec_kafka.librdkafka_version
+   fsspec_kafka.list_topics
 
 
 Package Contents
 ----------------
 
-.. py:data:: __version__
-   :value: '0.1.0'
+.. py:function:: builtin_features() -> list[str]
 
+.. py:function:: librdkafka_version() -> str
+
+.. py:function:: list_topics(config: dict[str, str], timeout: float = 10.0) -> list[str]
 

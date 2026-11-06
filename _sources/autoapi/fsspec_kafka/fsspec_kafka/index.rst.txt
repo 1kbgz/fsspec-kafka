@@ -4,16 +4,22 @@ fsspec_kafka.fsspec_kafka
 .. py:module:: fsspec_kafka.fsspec_kafka
 
 
-Classes
--------
+Functions
+---------
 
 .. autoapisummary::
 
-   fsspec_kafka.fsspec_kafka.Example
+   fsspec_kafka.fsspec_kafka.librdkafka_version
+   fsspec_kafka.fsspec_kafka.builtin_features
+   fsspec_kafka.fsspec_kafka.list_topics
 
 
 Module Contents
 ---------------
 
-.. py:class:: Example(value: str)
+.. py:function:: librdkafka_version() -> str
+
+.. py:function:: builtin_features() -> list[str]
+
+.. py:function:: list_topics(config: dict[str, str], timeout: float = 10.0) -> list[str]
 
