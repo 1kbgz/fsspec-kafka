@@ -653,6 +653,7 @@ name = "fsspec_kafka"
 version = "0.1.0"
 dependencies = [
  "arrow",
+ "chrono",
  "fsspec_data",
  "fsspec_rs",
  "futures-executor",
@@ -664,7 +665,9 @@ dependencies = [
 name = "fsspec_kafka_py"
 version = "0.1.0"
 dependencies = [
+ "fsspec_data",
  "fsspec_kafka",
+ "fsspec_rs",
  "pyo3",
 ]
 
@@ -1867,6 +1870,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7956f9ac12b5712e50372d9749a3102f4810a8d42481c5eae3748d36d585bcf"
 dependencies = [
  "futures-channel",
+ "futures-executor",
  "futures-util",
  "libc",
  "log",

@@ -119,12 +119,12 @@ tests: test
 ###############
 # INTEGRATION #
 ###############
-# Live broker integration tests, gated on FSSPEC_KAFKA_*_BOOTSTRAP env vars.
+# Live broker integration tests, gated on KAFKA_TEST_*BOOTSTRAP env vars.
 # Uses podman-compose by default; override with `make COMPOSE="docker compose" ...`.
 COMPOSE ?= podman-compose
 COMPOSE_FILE ?= ci/docker-compose.yml
-FSSPEC_KAFKA_BOOTSTRAP ?= 127.0.0.1:59092
-FSSPEC_KAFKA_KERBEROS_BOOTSTRAP ?= localhost:59094
+KAFKA_TEST_BOOTSTRAP ?= 127.0.0.1:59092
+KAFKA_TEST_KERBEROS_BOOTSTRAP ?= localhost:59094
 # Not exported, so plain `make test` does not trigger the gated tests.
 
 .PHONY: kafka-up kafka-wait kafka-down kafka-logs test-integration
@@ -150,12 +150,12 @@ kafka-logs:  ## tail the fixture logs
 	$(COMPOSE) -f $(COMPOSE_FILE) logs -f
 
 test-integration:  ## run the env-gated integration tests against running fixtures
-	cd rust && FSSPEC_KAFKA_BOOTSTRAP="$(FSSPEC_KAFKA_BOOTSTRAP)" cargo test --test redpanda
-	FSSPEC_KAFKA_BOOTSTRAP="$(FSSPEC_KAFKA_BOOTSTRAP)" \
-	FSSPEC_KAFKA_KERBEROS_BOOTSTRAP="$(FSSPEC_KAFKA_KERBEROS_BOOTSTRAP)" \
+	cd rust && KAFKA_TEST_BOOTSTRAP="$(KAFKA_TEST_BOOTSTRAP)" cargo test --test redpanda
+	KAFKA_TEST_BOOTSTRAP="$(KAFKA_TEST_BOOTSTRAP)" \
+	KAFKA_TEST_KERBEROS_BOOTSTRAP="$(KAFKA_TEST_KERBEROS_BOOTSTRAP)" \
 	KRB5_CONFIG="$(CURDIR)/ci/kerberos/krb5.conf" \
 	KRB5CCNAME="FILE:$(CURDIR)/ci/kerberos/keytabs/client.ccache" \
-	python -m pytest -v fsspec_kafka/tests/integration
+	python -m pytest -v fsspec_kafka/tests/integration --cov=fsspec_kafka --cov-append --cov-report term-missing --cov-report xml
 
 ###########
 # VERSION #

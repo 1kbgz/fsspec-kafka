@@ -5,8 +5,8 @@
 # `make test-integration`. Non-default host ports avoid clashing with a local
 # Kafka.
 #
-#   FSSPEC_KAFKA_BOOTSTRAP=127.0.0.1:59092             Redpanda, PLAINTEXT
-#   FSSPEC_KAFKA_KERBEROS_BOOTSTRAP=localhost:59094    Apache Kafka, SASL GSSAPI
+#   KAFKA_TEST_BOOTSTRAP=127.0.0.1:59092             Redpanda, PLAINTEXT
+#   KAFKA_TEST_KERBEROS_BOOTSTRAP=localhost:59094    Apache Kafka, SASL GSSAPI
 #
 # The Kerberos client uses ci/kerberos/krb5.conf and the client keytab written
 # to ci/kerberos/keytabs by the KDC.

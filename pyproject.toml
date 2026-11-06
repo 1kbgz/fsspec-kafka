@@ -30,7 +30,9 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 
-dependencies = []
+dependencies = [
+    "fsspec",
+]
 
 [project.optional-dependencies]
 develop = [
@@ -39,11 +41,14 @@ develop = [
     "check-dist",
     "cibuildwheel",
     "codespell",
+    "fsspec-rs",
     "hatch-rs",
     "hatchling",
     "mdformat",
     "mdformat-myst",
     "mdformat-tables>=1",
+    "pandas",
+    "pyarrow",
     "pytest",
     "pytest-cov",
     "ruff",
@@ -52,6 +57,9 @@ develop = [
     "uv",
     "wheel",
 ]
+
+[project.entry-points."fsspec.specs"]
+kafka = "fsspec_kafka.filesystem:KafkaFileSystem"
 
 [project.scripts]
 
