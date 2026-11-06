@@ -654,6 +654,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "bytes",
+ "chrono",
  "fsspec_data",
  "fsspec_rs",
  "futures-executor",

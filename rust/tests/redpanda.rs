@@ -204,6 +204,46 @@ fn finds_offsets_by_time() {
     );
 }
 
+#[test]
+fn reads_from_a_timestamp() {
+    let Some(bootstrap) = bootstrap() else { return };
+    let topic = Topic::create(&bootstrap, 1, 0);
+    let start = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64
+        - 3_600_000;
+    for index in 0..5 {
+        topic
+            .producer
+            .send(
+                BaseRecord::<(), _>::to(&topic.name)
+                    .partition(0)
+                    .timestamp(start + index * 1_000)
+                    .payload("x"),
+            )
+            .unwrap();
+    }
+    topic.producer.flush(TIMEOUT).unwrap();
+    let fs = filesystem(&bootstrap);
+    let path = |ms: i64| {
+        let time = chrono::DateTime::from_timestamp_millis(ms)
+            .unwrap()
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        format!("{}/0/@{time}.parquet", topic.name)
+    };
+
+    assert_eq!(
+        column_i64(&read_parquet(&fs, &path(start + 2_500)), "offset"),
+        [3, 4]
+    );
+    assert_eq!(
+        column_i64(&read_parquet(&fs, &path(start)), "offset"),
+        [0, 1, 2, 3, 4]
+    );
+    assert!(read_parquet(&fs, &path(start + 60_000)).is_empty());
+}
+
 fn read_parquet(fs: &KafkaFs<RdKafkaBackend>, path: &str) -> Vec<RecordBatch> {
     let mut data = Vec::new();
     fs.open(path, OpenMode::Read, None)
