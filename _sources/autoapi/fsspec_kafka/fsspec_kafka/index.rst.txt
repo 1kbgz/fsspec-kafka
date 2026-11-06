@@ -1,0 +1,19 @@
+fsspec_kafka.fsspec_kafka
+=========================
+
+.. py:module:: fsspec_kafka.fsspec_kafka
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   fsspec_kafka.fsspec_kafka.Example
+
+
+Module Contents
+---------------
+
+.. py:class:: Example(value: str)
+

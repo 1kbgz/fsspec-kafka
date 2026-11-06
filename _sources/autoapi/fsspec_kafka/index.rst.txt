@@ -1,0 +1,30 @@
+fsspec_kafka
+============
+
+.. py:module:: fsspec_kafka
+
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 1
+
+   /autoapi/fsspec_kafka/fsspec_kafka/index
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   fsspec_kafka.__version__
+
+
+Package Contents
+----------------
+
+.. py:data:: __version__
+   :value: '0.1.0'
+
+
