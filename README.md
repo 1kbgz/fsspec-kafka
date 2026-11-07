@@ -24,28 +24,37 @@ frame = pd.read_parquet("kafka://orders.parquet", storage_options=options)
 
 Storage options are librdkafka properties, except for these:
 
-| Option                      | Default    | Meaning                                                   |
-| --------------------------- | ---------- | --------------------------------------------------------- |
-| `timeout`                   | `10.0`     | Seconds to wait for broker requests                       |
-| `window_size`               | `10000`    | Offsets per window file                                   |
-| `list_format`               | `"arrow"`  | Extension used when listing windows                       |
-| `batch_size`                | `1024`     | Messages per Arrow record batch                           |
-| `allow_admin`               | `False`    | Lets `mkdir` create topics and `rmdir` delete them        |
-| `partitions`, `replication` | `-1`       | Settings for created topics; `-1` uses the broker default |
-| `topic_config`              | `{}`       | Configuration for created topics                          |
-| `value_format`              | `"binary"` | `"json"` decodes values with `value_schema`               |
-| `value_schema`              | `None`     | `pyarrow.Schema` of JSON values                           |
-| `flatten_value`             | `False`    | Puts JSON fields beside the message columns               |
-| `key_column`                | `None`     | Input column for message keys when appending              |
-| `partition_column`          | `None`     | Input column for partitions when appending                |
-| `timestamp_column`          | `None`     | Input column for timestamps when appending                |
-| `headers_column`            | `None`     | Input column for headers, a map, when appending           |
+| Option                      | Default    | Meaning                                                      |
+| --------------------------- | ---------- | ------------------------------------------------------------ |
+| `timeout`                   | `10.0`     | Seconds to wait for broker requests                          |
+| `window_size`               | `10000`    | Offsets per window file                                      |
+| `list_format`               | `"arrow"`  | Extension used when listing windows                          |
+| `batch_size`                | `1024`     | Messages per Arrow record batch                              |
+| `allow_admin`               | `False`    | Lets `mkdir` create topics and `rmdir` delete them           |
+| `partitions`, `replication` | `-1`       | Settings for created topics; `-1` uses the broker default    |
+| `topic_config`              | `{}`       | Configuration for created topics                             |
+| `value_format`              | `"binary"` | `"json"` or `"confluent"` decodes values with `value_schema` |
+| `value_schema`              | `None`     | `pyarrow.Schema` or fsspec-data schema reference             |
+| `flatten_value`             | `False`    | Puts JSON fields beside the message columns                  |
+| `key_column`                | `None`     | Input column for message keys when appending                 |
+| `partition_column`          | `None`     | Input column for partitions when appending                   |
+| `timestamp_column`          | `None`     | Input column for timestamps when appending                   |
+| `headers_column`            | `None`     | Input column for headers, a map, when appending              |
 
 Messages are read with `topic`, `partition`, `offset`, `timestamp`, `key`, `headers`, and `value` columns. With `value_format="json"`, `value` is a struct of the `value_schema` fields, which are null for tombstones. `flatten_value=True` puts the fields beside the other columns instead, which CSV needs because it cannot hold structs:
 
 ```python
 schema = pa.schema([("id", pa.int64()), ("status", pa.string())])
 frame = pd.read_csv("kafka://orders.csv", storage_options={**options, "value_format": "json", "value_schema": schema, "flatten_value": True})
+```
+
+`value_schema` can also be anything [fsspec-data](https://github.com/1kbgz/fsspec-data) resolves when it is installed, such as a list of `{"name": ..., "type": ...}` fields or a `SchemaRef` to a schema file or Confluent Schema Registry subject. `value_format="confluent"` reads and writes JSON in Confluent wire format; appends write the schema ID of a Confluent reference:
+
+```python
+from fsspec_data import SchemaRef
+
+schema = SchemaRef("confluent://orders-value/versions/latest", storage_options={"registry_url": "http://localhost:8081"})
+fs = fsspec.filesystem("kafka", **options, value_format="confluent", value_schema=schema, flatten_value=True)
 ```
 
 Topics are append-only. Opening `topic.format` or `topic/partition.format` with mode `"ab"` produces one message per row of the file when it closes. The mapped columns set the message fields, and the remaining columns are the value: a JSON object with `value_format="json"`, otherwise a single binary or string column. CSV and JSON Lines columns are typed from `value_schema`.

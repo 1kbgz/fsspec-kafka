@@ -6,6 +6,7 @@
 # Kafka.
 #
 #   KAFKA_TEST_BOOTSTRAP=127.0.0.1:59092             Redpanda, PLAINTEXT
+#   KAFKA_TEST_SCHEMA_REGISTRY=http://127.0.0.1:58081 Redpanda Schema Registry
 #   KAFKA_TEST_KERBEROS_BOOTSTRAP=localhost:59094    Apache Kafka, SASL GSSAPI
 #
 # The Kerberos client uses ci/kerberos/krb5.conf and the client keytab written
@@ -19,10 +20,13 @@ services:
       - start
       - --mode=dev-container
       - --smp=1
-      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
-      - --advertise-kafka-addr=PLAINTEXT://127.0.0.1:59092
+      # The schema registry connects to 127.0.0.1:9092 inside the container, so that
+      # listener advertises itself; clients on the host use the external one.
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:9093
+      - --advertise-kafka-addr=internal://127.0.0.1:9092,external://127.0.0.1:59092
     ports:
-      - "127.0.0.1:59092:9092"
+      - "127.0.0.1:59092:9093"
+      - "127.0.0.1:58081:8081"
 
   kdc:
     build: ./kerberos

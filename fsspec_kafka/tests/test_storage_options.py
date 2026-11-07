@@ -35,6 +35,7 @@ def test_invalid_options_are_rejected():
     "options",
     [
         {"value_format": "json"},
+        {"value_format": "confluent"},
         {"value_format": "avro", "value_schema": pa.schema([("id", pa.int64())])},
         {"value_schema": pa.schema([("id", pa.int64())])},
         {"flatten_value": True},
@@ -44,6 +45,18 @@ def test_invalid_options_are_rejected():
 def test_invalid_value_options_are_rejected(options):
     with pytest.raises(ValueError):
         KafkaFileSystem(**OPTIONS, **options)
+
+
+def test_value_schemas_can_be_fsspec_data_schemas(tmp_path):
+    fields = [{"name": "id", "type": "int64"}, {"name": "name", "type": "string"}]
+    KafkaFileSystem(**OPTIONS, value_format="json", value_schema=fields)
+
+    path = tmp_path / "value.json"
+    path.write_text('{"type": "object", "properties": {"id": {"type": "integer"}}}')
+    KafkaFileSystem(**OPTIONS, value_format="confluent", value_schema={"url": str(path), "format": "json-schema"})
+
+    with pytest.raises(FileNotFoundError):
+        KafkaFileSystem(**OPTIONS, value_format="json", value_schema={"url": str(tmp_path / "missing.json"), "format": "json-schema"})
 
 
 def test_filesystem_pickles_from_its_options():

@@ -230,6 +230,7 @@ impl RustKafkaFs {
         topic_config=BTreeMap::new(),
         value_format="binary",
         value_schema=None,
+        value_schema_id=None,
         flatten_value=false,
         key_column=None,
         partition_column=None,
@@ -250,24 +251,35 @@ impl RustKafkaFs {
         topic_config: BTreeMap<String, String>,
         value_format: &str,
         value_schema: Option<Vec<u8>>,
+        value_schema_id: Option<u32>,
         flatten_value: bool,
         key_column: Option<String>,
         partition_column: Option<String>,
         timestamp_column: Option<String>,
         headers_column: Option<String>,
     ) -> PyResult<Self> {
-        let value_format = match (value_format, value_schema) {
+        let schema = value_schema
+            .map(|schema| {
+                StreamReader::try_new(schema.as_slice(), None)
+                    .map(|reader| reader.schema())
+                    .map_err(|e| PyValueError::new_err(e.to_string()))
+            })
+            .transpose()?;
+        let value_format = match (value_format, schema) {
             ("binary", None) if !flatten_value => ValueFormat::Binary,
             ("json", Some(schema)) => ValueFormat::Json {
-                schema: StreamReader::try_new(schema.as_slice(), None)
-                    .map_err(|e| PyValueError::new_err(e.to_string()))?
-                    .schema(),
+                schema,
                 flatten: flatten_value,
+            },
+            ("confluent", Some(schema)) => ValueFormat::ConfluentJson {
+                schema,
+                flatten: flatten_value,
+                schema_id: value_schema_id,
             },
             _ => {
                 return Err(PyValueError::new_err(
-                    "value_format must be 'binary', or 'json' with a value_schema; \
-                     value_schema and flatten_value apply only to 'json'",
+                    "value_format must be 'binary', or 'json' or 'confluent' with a value_schema; \
+                     value_schema and flatten_value do not apply to 'binary'",
                 ))
             }
         };

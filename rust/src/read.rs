@@ -23,6 +23,27 @@ pub enum ValueFormat {
     /// `flatten`, placed beside the envelope columns. Decoded fields are nullable because
     /// tombstones have no value.
     Json { schema: SchemaRef, flatten: bool },
+    /// JSON objects in Confluent wire format, where a zero magic byte and a big-endian
+    /// schema ID precede each value. Reads accept any schema ID. Appends write `schema_id`,
+    /// so appending needs one.
+    ConfluentJson {
+        schema: SchemaRef,
+        flatten: bool,
+        schema_id: Option<u32>,
+    },
+}
+
+impl ValueFormat {
+    /// The schema and `flatten` setting of JSON values, or `None` for binary values.
+    pub(crate) fn json(&self) -> Option<(&SchemaRef, bool)> {
+        match self {
+            Self::Binary => None,
+            Self::Json { schema, flatten }
+            | Self::ConfluentJson {
+                schema, flatten, ..
+            } => Some((schema, *flatten)),
+        }
+    }
 }
 
 /// Arrow schema of message files. CSV cannot encode maps, so CSV files leave out `headers`.
@@ -45,20 +66,16 @@ pub fn message_schema(format: DataFormat, value: &ValueFormat) -> SchemaRef {
             false,
         ));
     }
-    match value {
-        ValueFormat::Binary => fields.push(Field::new("value", DataType::Binary, true)),
-        ValueFormat::Json {
-            schema,
-            flatten: false,
-        } => fields.push(Field::new(
+    match value.json() {
+        None => fields.push(Field::new("value", DataType::Binary, true)),
+        Some((schema, false)) => fields.push(Field::new(
             "value",
             DataType::Struct(nullable_fields(schema)),
             true,
         )),
-        ValueFormat::Json {
-            schema,
-            flatten: true,
-        } => fields.extend(nullable_fields(schema).iter().map(|f| f.as_ref().clone())),
+        Some((schema, true)) => {
+            fields.extend(nullable_fields(schema).iter().map(|f| f.as_ref().clone()))
+        }
     }
     Arc::new(Schema::new(fields))
 }
@@ -145,15 +162,20 @@ pub(crate) fn message_batch(
     if schema.column_with_name("headers").is_some() {
         columns.push(Arc::new(headers.finish()));
     }
-    let values = messages
+    let mut values = messages
         .iter()
         .map(|message| message.value.as_deref())
         .collect::<Vec<_>>();
-    match value {
-        ValueFormat::Binary => columns.push(Arc::new(BinaryArray::from(values))),
-        ValueFormat::Json { schema, flatten } => {
+    if let ValueFormat::ConfluentJson { .. } = value {
+        for value in values.iter_mut().flatten() {
+            *value = confluent_payload(value)?;
+        }
+    }
+    match value.json() {
+        None => columns.push(Arc::new(BinaryArray::from(values))),
+        Some((schema, flatten)) => {
             let decoded = decode_json(schema, &values)?;
-            if *flatten {
+            if flatten {
                 columns.extend_from_slice(decoded.columns());
             } else {
                 columns.push(Arc::new(decoded));
@@ -161,6 +183,16 @@ pub(crate) fn message_batch(
         }
     }
     RecordBatch::try_new(schema.clone(), columns).map_err(arrow_error)
+}
+
+/// The JSON after a Confluent wire format prefix.
+fn confluent_payload(value: &[u8]) -> FsResult<&[u8]> {
+    match value {
+        [0, _, _, _, _, payload @ ..] => Ok(payload),
+        _ => Err(FsError::Other(
+            "value is not in Confluent wire format".to_string(),
+        )),
+    }
 }
 
 /// Decodes one struct row per value, with null rows for tombstones. Values are decoded
@@ -458,6 +490,29 @@ mod tests {
             flat.column_by_name("name").unwrap().as_string::<i32>(),
             &StringArray::from(vec![Some("a"), None, Some("b"), Some("c")])
         );
+    }
+
+    #[test]
+    fn confluent_values_drop_the_wire_format_prefix() {
+        let ValueFormat::Json { schema, flatten } = json(true) else {
+            unreachable!()
+        };
+        let confluent = ValueFormat::ConfluentJson {
+            schema,
+            flatten,
+            schema_id: None,
+        };
+        let decoded = batch(&confluent, &[Some("\0\0\0\0\x07{\"id\": 1}"), None]).unwrap();
+        assert_eq!(
+            decoded
+                .column_by_name("id")
+                .unwrap()
+                .as_primitive::<Int64Type>(),
+            &Int64Array::from(vec![Some(1), None])
+        );
+        for value in [r#"{"id": 1}"#, "\0\0\0"] {
+            assert!(batch(&confluent, &[Some(value)]).is_err(), "{value:?}");
+        }
     }
 
     #[test]

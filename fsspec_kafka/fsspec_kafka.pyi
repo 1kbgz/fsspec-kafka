@@ -35,6 +35,7 @@ class RustKafkaFs:
         topic_config: dict[str, str] = ...,
         value_format: str = ...,
         value_schema: bytes | None = ...,
+        value_schema_id: int | None = ...,
         flatten_value: bool = ...,
         key_column: str | None = ...,
         partition_column: str | None = ...,
