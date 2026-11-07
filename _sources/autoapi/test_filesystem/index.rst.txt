@@ -10,6 +10,7 @@ Attributes
 .. autoapisummary::
 
    test_filesystem.BOOTSTRAP
+   test_filesystem.SCHEMA_REGISTRY
    test_filesystem.pytestmark
    test_filesystem.ROWS
 
@@ -29,6 +30,7 @@ Functions
    test_filesystem.test_reads_json_values
    test_filesystem.test_appended_files_read_back
    test_filesystem.test_appends_binary_values
+   test_filesystem.test_confluent_values_with_registry_schemas
    test_filesystem.test_records_through_open_and_get_mapper
    test_filesystem.test_failed_writes_are_discarded
    test_filesystem.test_topic_admin_needs_allow_admin
@@ -41,6 +43,8 @@ Module Contents
 ---------------
 
 .. py:data:: BOOTSTRAP
+
+.. py:data:: SCHEMA_REGISTRY
 
 .. py:data:: pytestmark
 
@@ -68,6 +72,8 @@ Module Contents
 .. py:function:: test_appended_files_read_back(options, empty_topic, format)
 
 .. py:function:: test_appends_binary_values(options, empty_topic)
+
+.. py:function:: test_confluent_values_with_registry_schemas(options, empty_topic)
 
 .. py:function:: test_records_through_open_and_get_mapper(options, topic)
 

@@ -162,9 +162,13 @@ Package Contents
    ``fsspec.filesystem("kafka", **{"bootstrap.servers": "localhost:9092"})``. They can also
    come from fsspec configuration, such as ``FSSPEC_KAFKA='{"bootstrap.servers": "..."}'``.
 
-   With ``value_format="json"``, values are JSON objects decoded with ``value_schema``, a
-   ``pyarrow.Schema``. Decoded fields are nested in a ``value`` struct column, or placed
-   beside the message columns with ``flatten_value=True``.
+   With ``value_format="json"``, values are JSON objects decoded with ``value_schema``.
+   Decoded fields are nested in a ``value`` struct column, or placed beside the message
+   columns with ``flatten_value=True``. ``value_format="confluent"`` reads JSON in Confluent
+   wire format. ``value_schema`` is a ``pyarrow.Schema`` or a schema reference that
+   fsspec-data resolves, such as ``"confluent://orders-value/versions/latest"`` with
+   ``storage_options={"registry_url": ...}`` in a ``fsspec_data.SchemaRef``. A Confluent
+   reference also gives the schema ID written when appending.
 
    Opening ``topic.format`` or ``topic/partition.format`` with mode ``"ab"`` appends a file
    as one message per row. ``key_column``, ``partition_column``, ``timestamp_column``, and

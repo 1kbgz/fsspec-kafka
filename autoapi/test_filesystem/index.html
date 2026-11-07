@@ -172,6 +172,9 @@
     <a href="#test_filesystem.BOOTSTRAP">BOOTSTRAP</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.SCHEMA_REGISTRY">SCHEMA_REGISTRY</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
     <a href="#test_filesystem.pytestmark">pytestmark</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
@@ -206,6 +209,9 @@
   </li>
   <li class="fd-toc-item" data-depth="2">
     <a href="#test_filesystem.test_appends_binary_values">test_appends_binary_values()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.test_confluent_values_with_registry_schemas">test_confluent_values_with_registry_schemas()</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
     <a href="#test_filesystem.test_records_through_open_and_get_mapper">test_records_through_open_and_get_mapper()</a>
@@ -250,10 +256,13 @@
 <tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.BOOTSTRAP" title="test_filesystem.BOOTSTRAP"><code class="xref py py-obj docutils literal notranslate"><span class="pre">BOOTSTRAP</span></code></a></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.pytestmark" title="test_filesystem.pytestmark"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pytestmark</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.SCHEMA_REGISTRY" title="test_filesystem.SCHEMA_REGISTRY"><code class="xref py py-obj docutils literal notranslate"><span class="pre">SCHEMA_REGISTRY</span></code></a></p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.ROWS" title="test_filesystem.ROWS"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ROWS</span></code></a></p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.pytestmark" title="test_filesystem.pytestmark"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pytestmark</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.ROWS" title="test_filesystem.ROWS"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ROWS</span></code></a></p></td>
 <td><p></p></td>
 </tr>
 </tbody>
@@ -293,22 +302,25 @@
 <tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_appends_binary_values" title="test_filesystem.test_appends_binary_values"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_appends_binary_values</span></code></a>(options, empty_topic)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_records_through_open_and_get_mapper" title="test_filesystem.test_records_through_open_and_get_mapper"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_records_through_open_and_get_mapper</span></code></a>(options, topic)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_confluent_values_with_registry_schemas" title="test_filesystem.test_confluent_values_with_registry_schemas"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_confluent_values_with_registry_schemas</span></code></a>(options, ...)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_failed_writes_are_discarded" title="test_filesystem.test_failed_writes_are_discarded"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_failed_writes_are_discarded</span></code></a>(options, topic)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_records_through_open_and_get_mapper" title="test_filesystem.test_records_through_open_and_get_mapper"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_records_through_open_and_get_mapper</span></code></a>(options, topic)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_topic_admin_needs_allow_admin" title="test_filesystem.test_topic_admin_needs_allow_admin"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_topic_admin_needs_allow_admin</span></code></a>(options)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_failed_writes_are_discarded" title="test_filesystem.test_failed_writes_are_discarded"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_failed_writes_are_discarded</span></code></a>(options, topic)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_missing_paths_raise_file_not_found" title="test_filesystem.test_missing_paths_raise_file_not_found"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_missing_paths_raise_file_not_found</span></code></a>(options, topic)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_topic_admin_needs_allow_admin" title="test_filesystem.test_topic_admin_needs_allow_admin"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_topic_admin_needs_allow_admin</span></code></a>(options)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_files_support_raw_io" title="test_filesystem.test_files_support_raw_io"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_files_support_raw_io</span></code></a>(options, topic)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_missing_paths_raise_file_not_found" title="test_filesystem.test_missing_paths_raise_file_not_found"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_missing_paths_raise_file_not_found</span></code></a>(options, topic)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_streams_follow_new_messages_and_resume" title="test_filesystem.test_streams_follow_new_messages_and_resume"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_streams_follow_new_messages_and_resume</span></code></a>(options, topic)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_files_support_raw_io" title="test_filesystem.test_files_support_raw_io"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_files_support_raw_io</span></code></a>(options, topic)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_streams_follow_new_messages_and_resume" title="test_filesystem.test_streams_follow_new_messages_and_resume"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_streams_follow_new_messages_and_resume</span></code></a>(options, topic)</p></td>
 <td><p></p></td>
 </tr>
 </tbody>
@@ -319,6 +331,11 @@
 <dl class="py data">
 <dt class="sig sig-object py" id="test_filesystem.BOOTSTRAP">
 <span class="sig-prename descclassname"><span class="pre">test_filesystem.</span></span><span class="sig-name descname"><span class="pre">BOOTSTRAP</span></span><a class="headerlink" href="#test_filesystem.BOOTSTRAP" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="test_filesystem.SCHEMA_REGISTRY">
+<span class="sig-prename descclassname"><span class="pre">test_filesystem.</span></span><span class="sig-name descname"><span class="pre">SCHEMA_REGISTRY</span></span><a class="headerlink" href="#test_filesystem.SCHEMA_REGISTRY" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py data">
@@ -380,6 +397,11 @@
 <dl class="py function">
 <dt class="sig sig-object py" id="test_filesystem.test_appends_binary_values">
 <span class="sig-prename descclassname"><span class="pre">test_filesystem.</span></span><span class="sig-name descname"><span class="pre">test_appends_binary_values</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">empty_topic</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#test_filesystem.test_appends_binary_values" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="test_filesystem.test_confluent_values_with_registry_schemas">
+<span class="sig-prename descclassname"><span class="pre">test_filesystem.</span></span><span class="sig-name descname"><span class="pre">test_confluent_values_with_registry_schemas</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">empty_topic</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#test_filesystem.test_confluent_values_with_registry_schemas" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py function">
@@ -461,6 +483,9 @@
     <a href="#test_filesystem.BOOTSTRAP">BOOTSTRAP</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.SCHEMA_REGISTRY">SCHEMA_REGISTRY</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
     <a href="#test_filesystem.pytestmark">pytestmark</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
@@ -495,6 +520,9 @@
   </li>
   <li class="fd-toc-item" data-depth="2">
     <a href="#test_filesystem.test_appends_binary_values">test_appends_binary_values()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.test_confluent_values_with_registry_schemas">test_confluent_values_with_registry_schemas()</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
     <a href="#test_filesystem.test_records_through_open_and_get_mapper">test_records_through_open_and_get_mapper()</a>
