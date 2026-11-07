@@ -506,10 +506,13 @@ come from fsspec configuration, such as <code class="docutils literal notranslat
 <p>With <code class="docutils literal notranslate"><span class="pre">value_format=&quot;json&quot;</span></code>, values are JSON objects decoded with <code class="docutils literal notranslate"><span class="pre">value_schema</span></code>.
 Decoded fields are nested in a <code class="docutils literal notranslate"><span class="pre">value</span></code> struct column, or placed beside the message
 columns with <code class="docutils literal notranslate"><span class="pre">flatten_value=True</span></code>. <code class="docutils literal notranslate"><span class="pre">value_format=&quot;confluent&quot;</span></code> reads JSON in Confluent
-wire format. <code class="docutils literal notranslate"><span class="pre">value_schema</span></code> is a <code class="docutils literal notranslate"><span class="pre">pyarrow.Schema</span></code> or a schema reference that
-fsspec-data resolves, such as <code class="docutils literal notranslate"><span class="pre">&quot;confluent://orders-value/versions/latest&quot;</span></code> with
-<code class="docutils literal notranslate"><span class="pre">storage_options={&quot;registry_url&quot;:</span> <span class="pre">...}</span></code> in a <code class="docutils literal notranslate"><span class="pre">fsspec_data.SchemaRef</span></code>. A Confluent
-reference also gives the schema ID written when appending.</p>
+wire format, with JSON Schema or Avro subjects. <code class="docutils literal notranslate"><span class="pre">value_format=&quot;avro&quot;</span></code> reads bare Avro
+records. <code class="docutils literal notranslate"><span class="pre">value_schema</span></code> is a <code class="docutils literal notranslate"><span class="pre">pyarrow.Schema</span></code> or a schema reference that fsspec-data
+resolves, such as <code class="docutils literal notranslate"><span class="pre">&quot;confluent://orders-value/versions/latest&quot;</span></code> with
+<code class="docutils literal notranslate"><span class="pre">storage_options={&quot;registry_url&quot;:</span> <span class="pre">...}</span></code> in a <code class="docutils literal notranslate"><span class="pre">fsspec_data.SchemaRef</span></code>. For Avro it is
+an <code class="docutils literal notranslate"><span class="pre">.avsc</span></code> reference, an Avro schema dict, or a Confluent Avro subject, whose registered
+versions are used to read older messages. A Confluent reference also gives the schema ID
+written when appending.</p>
 <p>Opening <code class="docutils literal notranslate"><span class="pre">topic.format</span></code> or <code class="docutils literal notranslate"><span class="pre">topic/partition.format</span></code> with mode <code class="docutils literal notranslate"><span class="pre">&quot;ab&quot;</span></code> appends a file
 as one message per row. <code class="docutils literal notranslate"><span class="pre">key_column</span></code>, <code class="docutils literal notranslate"><span class="pre">partition_column</span></code>, <code class="docutils literal notranslate"><span class="pre">timestamp_column</span></code>, and
 <code class="docutils literal notranslate"><span class="pre">headers_column</span></code> name the input columns that set those message fields. The remaining

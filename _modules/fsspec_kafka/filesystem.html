@@ -573,9 +573,11 @@ window.runMermaid = runMermaid;</script>
       <div class="fd-prose">
   <h1>Source code for fsspec_kafka.filesystem</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span><span class="w"> </span><span class="nn">io</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mapping</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">fsspec</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">fsspec</span><span class="w"> </span><span class="kn">import</span> <span class="n">AbstractFileSystem</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.fsspec_kafka</span><span class="w"> </span><span class="kn">import</span> <span class="n">RustKafkaFs</span>
@@ -604,10 +606,13 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    With ``value_format="json"``, values are JSON objects decoded with ``value_schema``.</span>
 <span class="sd">    Decoded fields are nested in a ``value`` struct column, or placed beside the message</span>
 <span class="sd">    columns with ``flatten_value=True``. ``value_format="confluent"`` reads JSON in Confluent</span>
-<span class="sd">    wire format. ``value_schema`` is a ``pyarrow.Schema`` or a schema reference that</span>
-<span class="sd">    fsspec-data resolves, such as ``"confluent://orders-value/versions/latest"`` with</span>
-<span class="sd">    ``storage_options={"registry_url": ...}`` in a ``fsspec_data.SchemaRef``. A Confluent</span>
-<span class="sd">    reference also gives the schema ID written when appending.</span>
+<span class="sd">    wire format, with JSON Schema or Avro subjects. ``value_format="avro"`` reads bare Avro</span>
+<span class="sd">    records. ``value_schema`` is a ``pyarrow.Schema`` or a schema reference that fsspec-data</span>
+<span class="sd">    resolves, such as ``"confluent://orders-value/versions/latest"`` with</span>
+<span class="sd">    ``storage_options={"registry_url": ...}`` in a ``fsspec_data.SchemaRef``. For Avro it is</span>
+<span class="sd">    an ``.avsc`` reference, an Avro schema dict, or a Confluent Avro subject, whose registered</span>
+<span class="sd">    versions are used to read older messages. A Confluent reference also gives the schema ID</span>
+<span class="sd">    written when appending.</span>
 
 <span class="sd">    Opening ``topic.format`` or ``topic/partition.format`` with mode ``"ab"`` appends a file</span>
 <span class="sd">    as one message per row. ``key_column``, ``partition_column``, ``timestamp_column``, and</span>
@@ -639,7 +644,6 @@ window.runMermaid = runMermaid;</script>
         <span class="o">**</span><span class="n">storage_options</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">storage_options</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">_FSSPEC_OPTIONS</span> <span class="o">&amp;</span> <span class="n">storage_options</span><span class="o">.</span><span class="n">keys</span><span class="p">()})</span>
-        <span class="n">value_schema</span><span class="p">,</span> <span class="n">value_schema_id</span> <span class="o">=</span> <span class="n">_value_schema</span><span class="p">(</span><span class="n">value_schema</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_rust</span> <span class="o">=</span> <span class="n">RustKafkaFs</span><span class="p">(</span>
             <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">_property</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">storage_options</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
             <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">,</span>
@@ -651,8 +655,7 @@ window.runMermaid = runMermaid;</script>
             <span class="n">replication</span><span class="o">=</span><span class="n">replication</span><span class="p">,</span>
             <span class="n">topic_config</span><span class="o">=</span><span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">_property</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="p">(</span><span class="n">topic_config</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
             <span class="n">value_format</span><span class="o">=</span><span class="n">value_format</span><span class="p">,</span>
-            <span class="n">value_schema</span><span class="o">=</span><span class="kc">None</span> <span class="k">if</span> <span class="n">value_schema</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">_schema_bytes</span><span class="p">(</span><span class="n">value_schema</span><span class="p">),</span>
-            <span class="n">value_schema_id</span><span class="o">=</span><span class="n">value_schema_id</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">_value_schema</span><span class="p">(</span><span class="n">value_format</span><span class="p">,</span> <span class="n">value_schema</span><span class="p">),</span>
             <span class="n">flatten_value</span><span class="o">=</span><span class="n">flatten_value</span><span class="p">,</span>
             <span class="n">key_column</span><span class="o">=</span><span class="n">key_column</span><span class="p">,</span>
             <span class="n">partition_column</span><span class="o">=</span><span class="n">partition_column</span><span class="p">,</span>
@@ -737,20 +740,39 @@ window.runMermaid = runMermaid;</script>
 
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_value_schema</span><span class="p">(</span><span class="n">value_schema</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">"""The Arrow schema of ``value_schema`` and its Confluent schema ID, if it has one."""</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_value_schema</span><span class="p">(</span><span class="n">value_format</span><span class="p">,</span> <span class="n">value_schema</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Keyword arguments for RustKafkaFs describing ``value_schema``: an Arrow schema for JSON</span>
+<span class="sd">    values, or Avro schema JSON for Avro values, and the Confluent schema ID if it has one."""</span>
     <span class="k">if</span> <span class="n">value_schema</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">fsspec_data</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFAULT_SCHEMA_RESOLVERS</span><span class="p">,</span> <span class="n">SchemaRef</span>
+        <span class="k">return</span> <span class="p">{}</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value_schema</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">Schema</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">"value_schema"</span><span class="p">:</span> <span class="n">_schema_bytes</span><span class="p">(</span><span class="n">value_schema</span><span class="p">)}</span>
+    <span class="k">if</span> <span class="n">value_format</span> <span class="o">==</span> <span class="s2">"avro"</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value_schema</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">)</span> <span class="ow">and</span> <span class="s2">"url"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">value_schema</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">"avro_schema"</span><span class="p">:</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">value_schema</span><span class="p">)}</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">fsspec_data</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFAULT_SCHEMA_RESOLVERS</span><span class="p">,</span> <span class="n">SchemaRef</span><span class="p">,</span> <span class="n">json_schema_to_arrow</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">fsspec_data.confluent</span><span class="w"> </span><span class="kn">import</span> <span class="n">fetch_confluent_schema</span><span class="p">,</span> <span class="n">fetch_confluent_versions</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">fsspec_data.schema</span><span class="w"> </span><span class="kn">import</span> <span class="n">normalize_schema</span>
 
     <span class="n">schema</span> <span class="o">=</span> <span class="n">normalize_schema</span><span class="p">(</span><span class="n">value_schema</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="n">SchemaRef</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">schema</span><span class="p">,</span> <span class="kc">None</span>
-    <span class="n">resolved</span> <span class="o">=</span> <span class="n">DEFAULT_SCHEMA_RESOLVERS</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
-    <span class="n">provenance</span> <span class="o">=</span> <span class="n">resolved</span><span class="o">.</span><span class="n">provenance</span>
-    <span class="n">schema_id</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">provenance</span><span class="o">.</span><span class="n">identifier</span><span class="p">)</span> <span class="k">if</span> <span class="n">provenance</span><span class="o">.</span><span class="n">provider</span> <span class="o">==</span> <span class="s2">"confluent"</span> <span class="ow">and</span> <span class="n">provenance</span><span class="o">.</span><span class="n">identifier</span> <span class="k">else</span> <span class="kc">None</span>
-    <span class="k">return</span> <span class="n">resolved</span><span class="o">.</span><span class="n">schema</span><span class="p">,</span> <span class="n">schema_id</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">"value_schema"</span><span class="p">:</span> <span class="n">_schema_bytes</span><span class="p">(</span><span class="n">schema</span><span class="p">)}</span>
+    <span class="k">if</span> <span class="n">schema</span><span class="o">.</span><span class="n">url</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"confluent://"</span><span class="p">):</span>
+        <span class="n">document</span> <span class="o">=</span> <span class="n">fetch_confluent_schema</span><span class="p">(</span><span class="n">schema</span><span class="o">.</span><span class="n">url</span><span class="p">,</span> <span class="n">schema</span><span class="o">.</span><span class="n">storage_options</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">document</span><span class="o">.</span><span class="n">references</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Confluent schema references are not supported"</span><span class="p">)</span>
+        <span class="n">schema_id</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">document</span><span class="o">.</span><span class="n">schema_id</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">int</span><span class="p">(</span><span class="n">document</span><span class="o">.</span><span class="n">schema_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">document</span><span class="o">.</span><span class="n">schema_type</span> <span class="o">!=</span> <span class="s2">"AVRO"</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s2">"value_schema"</span><span class="p">:</span> <span class="n">_schema_bytes</span><span class="p">(</span><span class="n">json_schema_to_arrow</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">document</span><span class="o">.</span><span class="n">schema</span><span class="p">))),</span> <span class="s2">"value_schema_id"</span><span class="p">:</span> <span class="n">schema_id</span><span class="p">}</span>
+        <span class="c1"># Messages may have been written with any registered version of the subject.</span>
+        <span class="n">versions</span> <span class="o">=</span> <span class="n">fetch_confluent_versions</span><span class="p">(</span><span class="n">schema</span><span class="o">.</span><span class="n">url</span><span class="p">,</span> <span class="n">schema</span><span class="o">.</span><span class="n">storage_options</span><span class="p">)</span>
+        <span class="n">writers</span> <span class="o">=</span> <span class="p">[(</span><span class="nb">int</span><span class="p">(</span><span class="n">version</span><span class="o">.</span><span class="n">schema_id</span><span class="p">),</span> <span class="n">version</span><span class="o">.</span><span class="n">schema</span><span class="p">)</span> <span class="k">for</span> <span class="n">version</span> <span class="ow">in</span> <span class="n">versions</span> <span class="k">if</span> <span class="n">version</span><span class="o">.</span><span class="n">schema_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">"avro_schema"</span><span class="p">:</span> <span class="n">document</span><span class="o">.</span><span class="n">schema</span><span class="p">,</span> <span class="s2">"avro_writers"</span><span class="p">:</span> <span class="n">writers</span><span class="p">,</span> <span class="s2">"value_schema_id"</span><span class="p">:</span> <span class="n">schema_id</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">value_format</span> <span class="o">==</span> <span class="s2">"avro"</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">schema</span><span class="o">.</span><span class="n">url</span><span class="p">,</span> <span class="s2">"rb"</span><span class="p">,</span> <span class="o">**</span><span class="n">schema</span><span class="o">.</span><span class="n">storage_options</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s2">"avro_schema"</span><span class="p">:</span> <span class="n">file</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">decode</span><span class="p">()}</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"value_schema"</span><span class="p">:</span> <span class="n">_schema_bytes</span><span class="p">(</span><span class="n">DEFAULT_SCHEMA_RESOLVERS</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span><span class="o">.</span><span class="n">schema</span><span class="p">)}</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_schema_bytes</span><span class="p">(</span><span class="n">schema</span><span class="p">):</span>

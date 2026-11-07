@@ -165,10 +165,13 @@ Package Contents
    With ``value_format="json"``, values are JSON objects decoded with ``value_schema``.
    Decoded fields are nested in a ``value`` struct column, or placed beside the message
    columns with ``flatten_value=True``. ``value_format="confluent"`` reads JSON in Confluent
-   wire format. ``value_schema`` is a ``pyarrow.Schema`` or a schema reference that
-   fsspec-data resolves, such as ``"confluent://orders-value/versions/latest"`` with
-   ``storage_options={"registry_url": ...}`` in a ``fsspec_data.SchemaRef``. A Confluent
-   reference also gives the schema ID written when appending.
+   wire format, with JSON Schema or Avro subjects. ``value_format="avro"`` reads bare Avro
+   records. ``value_schema`` is a ``pyarrow.Schema`` or a schema reference that fsspec-data
+   resolves, such as ``"confluent://orders-value/versions/latest"`` with
+   ``storage_options={"registry_url": ...}`` in a ``fsspec_data.SchemaRef``. For Avro it is
+   an ``.avsc`` reference, an Avro schema dict, or a Confluent Avro subject, whose registered
+   versions are used to read older messages. A Confluent reference also gives the schema ID
+   written when appending.
 
    Opening ``topic.format`` or ``topic/partition.format`` with mode ``"ab"`` appends a file
    as one message per row. ``key_column``, ``partition_column``, ``timestamp_column``, and
