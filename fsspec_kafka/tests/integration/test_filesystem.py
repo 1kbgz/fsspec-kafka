@@ -69,7 +69,8 @@ def test_lists_topics_partitions_and_windows(options, topic):
     assert fs.ls(f"kafka://{topic}/0", detail=False) == [f"{topic}/0/0-.arrow"]
     info = fs.info(f"{topic}/0")
     assert info["type"] == "directory"
-    assert (info["low"], info["high"]) == ("0", "3")
+    assert (info["partition"], info["low"], info["high"]) == ("0", "0", "3")
+    assert fs.ls(topic)[1]["partition"] == "0"
 
 
 def test_reads_windows_with_pyarrow(options, topic):

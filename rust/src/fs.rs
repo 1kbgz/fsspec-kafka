@@ -405,9 +405,7 @@ impl<B: KafkaBackend> KafkaFs<B> {
                 let mut entries = vec![FileInfo::directory(
                     KafkaPath::MetaDir(topic.clone()).to_path(),
                 )];
-                entries.extend(info.partitions.iter().map(|p| {
-                    FileInfo::directory(KafkaPath::Partition(topic.clone(), p.id).to_path())
-                }));
+                entries.extend(info.partitions.iter().map(|p| partition_dir(&topic, p.id)));
                 Ok(entries)
             }
             KafkaPath::MetaDir(topic) => MetaFile::ALL
@@ -458,7 +456,7 @@ impl<B: KafkaBackend> KafkaFs<B> {
             KafkaPath::Partition(topic, partition) => {
                 self.partition(topic, *partition)?;
                 let marks = self.backend.watermarks(topic, *partition)?;
-                let mut info = FileInfo::directory(path.to_path());
+                let mut info = partition_dir(topic, *partition);
                 info.extra.insert("low".into(), marks.low.to_string());
                 info.extra.insert("high".into(), marks.high.to_string());
                 Ok(info)
@@ -704,6 +702,13 @@ fn topic_dir(topic: &TopicInfo) -> FileInfo {
     let mut info = FileInfo::directory(KafkaPath::Topic(topic.name.clone()).to_path());
     info.extra
         .insert("partitions".into(), topic.partitions.len().to_string());
+    info
+}
+
+fn partition_dir(topic: &str, partition: i32) -> FileInfo {
+    let mut info =
+        FileInfo::directory(KafkaPath::Partition(topic.to_string(), partition).to_path());
+    info.extra.insert("partition".into(), partition.to_string());
     info
 }
 
@@ -994,6 +999,16 @@ mod tests {
         assert_eq!(
             names(fs.ls("kafka://orders", true).unwrap()),
             ["orders/_meta", "orders/0", "orders/1"]
+        );
+        assert_eq!(fs.ls("orders", true).unwrap()[2].extra["partition"], "1");
+        let info = fs.info("orders/1").unwrap();
+        assert_eq!(
+            (
+                &info.extra["partition"],
+                &info.extra["low"],
+                &info.extra["high"]
+            ),
+            (&"1".to_string(), &"7".to_string(), &"7".to_string())
         );
         assert_eq!(
             names(fs.ls("orders/0", true).unwrap()),
