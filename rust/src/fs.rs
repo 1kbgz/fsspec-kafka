@@ -594,6 +594,19 @@ impl<B: KafkaBackend> FileSystem for KafkaFs<B> {
         }
     }
 
+    /// Data files have no size until they are fully encoded, so the range is taken from the
+    /// whole file.
+    fn cat_file(&self, path: &str, start: Option<i64>, end: Option<i64>) -> FsResult<Vec<u8>> {
+        let mut data = Vec::new();
+        self.open(path, OpenMode::Read, None)?
+            .read_to_end(&mut data)?;
+        let len = data.len() as i64;
+        let bound = |index: i64| (if index < 0 { len + index } else { index }).clamp(0, len);
+        let start = start.map_or(0, bound) as usize;
+        let end = (end.map_or(len, bound) as usize).max(start);
+        Ok(data[start..end].to_vec())
+    }
+
     /// Produces the value and returns once the broker acknowledges it.
     fn pipe_file(&self, path: &str, data: &[u8]) -> FsResult<()> {
         let mut file = self.open(path, OpenMode::Write, None)?;
@@ -1072,6 +1085,26 @@ mod tests {
                 .unwrap()
                 .len() as u64
         );
+    }
+
+    #[test]
+    fn cat_file_reads_data_files_of_unknown_size() {
+        let fs = fs();
+        let data = read_bytes(&fs, "orders/0/10-19.arrow");
+        assert!(!data.is_empty());
+        assert_eq!(
+            fs.cat_file("orders/0/10-19.arrow", None, None).unwrap(),
+            data
+        );
+        assert_eq!(
+            fs.cat_file("orders/0/10-19.arrow", Some(2), Some(-3))
+                .unwrap(),
+            data[2..data.len() - 3]
+        );
+        assert!(fs
+            .cat_file("orders/0/10-19.arrow", Some(-1), Some(1))
+            .unwrap()
+            .is_empty());
     }
 
     fn read_bytes(fs: &KafkaFs<MockBackend>, path: &str) -> Vec<u8> {

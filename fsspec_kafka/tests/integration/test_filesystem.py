@@ -75,6 +75,8 @@ def test_reads_windows_with_pyarrow(options, topic):
         table = pyarrow.ipc.open_stream(file).read_all()
     assert table.column("offset").to_pylist() == [0, 1, 2]
     assert table.column("key").to_pylist() == [b"a", b"b", b"c"]
+    data = fsspec.filesystem("kafka", **options).cat_file(f"{topic}/0/0-.arrow")
+    assert pyarrow.ipc.open_stream(data).read_all() == table
 
     with fsspec.open(f"kafka://{topic}/0/0-.parquet", **options) as file:
         assert pyarrow.parquet.read_table(file).column("value").to_pylist() == [b"a", b"b", b"c"]
