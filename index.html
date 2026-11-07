@@ -239,11 +239,33 @@
 <td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
 <td><p>Puts JSON fields beside the message columns</p></td>
 </tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">key_column</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p>Input column for message keys when appending</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">partition_column</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p>Input column for partitions when appending</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">timestamp_column</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p>Input column for timestamps when appending</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">headers_column</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p>Input column for headers, a map, when appending</p></td>
+</tr>
 </tbody>
 </table>
 <p>Messages are read with <code class="docutils literal notranslate"><span class="pre">topic</span></code>, <code class="docutils literal notranslate"><span class="pre">partition</span></code>, <code class="docutils literal notranslate"><span class="pre">offset</span></code>, <code class="docutils literal notranslate"><span class="pre">timestamp</span></code>, <code class="docutils literal notranslate"><span class="pre">key</span></code>, <code class="docutils literal notranslate"><span class="pre">headers</span></code>, and <code class="docutils literal notranslate"><span class="pre">value</span></code> columns. With <code class="docutils literal notranslate"><span class="pre">value_format=&quot;json&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">value</span></code> is a struct of the <code class="docutils literal notranslate"><span class="pre">value_schema</span></code> fields, which are null for tombstones. <code class="docutils literal notranslate"><span class="pre">flatten_value=True</span></code> puts the fields beside the other columns instead, which CSV needs because it cannot hold structs:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">schema</span> <span class="o">=</span> <span class="n">pa</span><span class="o">.</span><span class="n">schema</span><span class="p">([(</span><span class="s2">"id"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">int64</span><span class="p">()),</span> <span class="p">(</span><span class="s2">"status"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">string</span><span class="p">())])</span>
 <span class="n">frame</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">"kafka://orders.csv"</span><span class="p">,</span> <span class="n">storage_options</span><span class="o">=</span><span class="p">{</span><span class="o">**</span><span class="n">options</span><span class="p">,</span> <span class="s2">"value_format"</span><span class="p">:</span> <span class="s2">"json"</span><span class="p">,</span> <span class="s2">"value_schema"</span><span class="p">:</span> <span class="n">schema</span><span class="p">,</span> <span class="s2">"flatten_value"</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
+</pre></div>
+</div>
+<p>Topics are append-only. Opening <code class="docutils literal notranslate"><span class="pre">topic.format</span></code> or <code class="docutils literal notranslate"><span class="pre">topic/partition.format</span></code> with mode <code class="docutils literal notranslate"><span class="pre">&quot;ab&quot;</span></code> produces one message per row of the file when it closes. The mapped columns set the message fields, and the remaining columns are the value: a JSON object with <code class="docutils literal notranslate"><span class="pre">value_format=&quot;json&quot;</span></code>, otherwise a single binary or string column. CSV and JSON Lines columns are typed from <code class="docutils literal notranslate"><span class="pre">value_schema</span></code>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">fs</span> <span class="o">=</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">filesystem</span><span class="p">(</span><span class="s2">"kafka"</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">,</span> <span class="n">value_format</span><span class="o">=</span><span class="s2">"json"</span><span class="p">,</span> <span class="n">value_schema</span><span class="o">=</span><span class="n">schema</span><span class="p">,</span> <span class="n">key_column</span><span class="o">=</span><span class="s2">"order_id"</span><span class="p">)</span>
+<span class="k">with</span> <span class="n">fs</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">"orders.parquet"</span><span class="p">,</span> <span class="s2">"ab"</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+    <span class="n">frame</span><span class="o">.</span><span class="n">to_parquet</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Options can also come from fsspec configuration, for example <code class="docutils literal notranslate"><span class="pre">FSSPEC_KAFKA='{&quot;bootstrap.servers&quot;:</span> <span class="pre">&quot;localhost:9092&quot;}'</span></code>.</p>

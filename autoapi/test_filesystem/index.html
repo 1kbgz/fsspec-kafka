@@ -181,6 +181,15 @@
     <a href="#test_filesystem.topic">topic()</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.empty_topic">empty_topic()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.ROWS">ROWS</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem._encode">_encode()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
     <a href="#test_filesystem.test_lists_topics_partitions_and_windows">test_lists_topics_partitions_and_windows()</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
@@ -191,6 +200,12 @@
   </li>
   <li class="fd-toc-item" data-depth="2">
     <a href="#test_filesystem.test_reads_json_values">test_reads_json_values()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.test_appended_files_read_back">test_appended_files_read_back()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.test_appends_binary_values">test_appends_binary_values()</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
     <a href="#test_filesystem.test_records_through_open_and_get_mapper">test_records_through_open_and_get_mapper()</a>
@@ -238,6 +253,9 @@
 <tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.pytestmark" title="test_filesystem.pytestmark"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pytestmark</span></code></a></p></td>
 <td><p></p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.ROWS" title="test_filesystem.ROWS"><code class="xref py py-obj docutils literal notranslate"><span class="pre">ROWS</span></code></a></p></td>
+<td><p></p></td>
+</tr>
 </tbody>
 </table>
 </section>
@@ -251,6 +269,12 @@
 <tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.topic" title="test_filesystem.topic"><code class="xref py py-obj docutils literal notranslate"><span class="pre">topic</span></code></a>(options)</p></td>
 <td><p>A compacted single-partition topic holding records a, b and c.</p></td>
 </tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.empty_topic" title="test_filesystem.empty_topic"><code class="xref py py-obj docutils literal notranslate"><span class="pre">empty_topic</span></code></a>(options)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem._encode" title="test_filesystem._encode"><code class="xref py py-obj docutils literal notranslate"><span class="pre">_encode</span></code></a>(table, format)</p></td>
+<td><p></p></td>
+</tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_lists_topics_partitions_and_windows" title="test_filesystem.test_lists_topics_partitions_and_windows"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_lists_topics_partitions_and_windows</span></code></a>(options, topic)</p></td>
 <td><p></p></td>
 </tr>
@@ -261,6 +285,12 @@
 <td><p></p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_reads_json_values" title="test_filesystem.test_reads_json_values"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_reads_json_values</span></code></a>(options, topic)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_appended_files_read_back" title="test_filesystem.test_appended_files_read_back"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_appended_files_read_back</span></code></a>(options, empty_topic, format)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_appends_binary_values" title="test_filesystem.test_appends_binary_values"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_appends_binary_values</span></code></a>(options, empty_topic)</p></td>
 <td><p></p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_records_through_open_and_get_mapper" title="test_filesystem.test_records_through_open_and_get_mapper"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_records_through_open_and_get_mapper</span></code></a>(options, topic)</p></td>
@@ -308,6 +338,21 @@
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="test_filesystem.empty_topic">
+<span class="sig-prename descclassname"><span class="pre">test_filesystem.</span></span><span class="sig-name descname"><span class="pre">empty_topic</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#test_filesystem.empty_topic" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="test_filesystem.ROWS">
+<span class="sig-prename descclassname"><span class="pre">test_filesystem.</span></span><span class="sig-name descname"><span class="pre">ROWS</span></span><a class="headerlink" href="#test_filesystem.ROWS" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="test_filesystem._encode">
+<span class="sig-prename descclassname"><span class="pre">test_filesystem.</span></span><span class="sig-name descname"><span class="pre">_encode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">table</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">format</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#test_filesystem._encode" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="test_filesystem.test_lists_topics_partitions_and_windows">
 <span class="sig-prename descclassname"><span class="pre">test_filesystem.</span></span><span class="sig-name descname"><span class="pre">test_lists_topics_partitions_and_windows</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topic</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#test_filesystem.test_lists_topics_partitions_and_windows" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -325,6 +370,16 @@
 <dl class="py function">
 <dt class="sig sig-object py" id="test_filesystem.test_reads_json_values">
 <span class="sig-prename descclassname"><span class="pre">test_filesystem.</span></span><span class="sig-name descname"><span class="pre">test_reads_json_values</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topic</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#test_filesystem.test_reads_json_values" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="test_filesystem.test_appended_files_read_back">
+<span class="sig-prename descclassname"><span class="pre">test_filesystem.</span></span><span class="sig-name descname"><span class="pre">test_appended_files_read_back</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">empty_topic</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">format</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#test_filesystem.test_appended_files_read_back" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="test_filesystem.test_appends_binary_values">
+<span class="sig-prename descclassname"><span class="pre">test_filesystem.</span></span><span class="sig-name descname"><span class="pre">test_appends_binary_values</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">empty_topic</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#test_filesystem.test_appends_binary_values" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py function">
@@ -415,6 +470,15 @@
     <a href="#test_filesystem.topic">topic()</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.empty_topic">empty_topic()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.ROWS">ROWS</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem._encode">_encode()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
     <a href="#test_filesystem.test_lists_topics_partitions_and_windows">test_lists_topics_partitions_and_windows()</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
@@ -425,6 +489,12 @@
   </li>
   <li class="fd-toc-item" data-depth="2">
     <a href="#test_filesystem.test_reads_json_values">test_reads_json_values()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.test_appended_files_read_back">test_appended_files_read_back()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.test_appends_binary_values">test_appends_binary_values()</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
     <a href="#test_filesystem.test_records_through_open_and_get_mapper">test_records_through_open_and_get_mapper()</a>

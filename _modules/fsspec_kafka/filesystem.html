@@ -604,6 +604,12 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    With ``value_format="json"``, values are JSON objects decoded with ``value_schema``, a</span>
 <span class="sd">    ``pyarrow.Schema``. Decoded fields are nested in a ``value`` struct column, or placed</span>
 <span class="sd">    beside the message columns with ``flatten_value=True``.</span>
+
+<span class="sd">    Opening ``topic.format`` or ``topic/partition.format`` with mode ``"ab"`` appends a file</span>
+<span class="sd">    as one message per row. ``key_column``, ``partition_column``, ``timestamp_column``, and</span>
+<span class="sd">    ``headers_column`` name the input columns that set those message fields. The remaining</span>
+<span class="sd">    columns are the value: one JSON object per row with ``value_format="json"``, otherwise a</span>
+<span class="sd">    single binary or string column.</span>
 <span class="sd">    """</span>
 
     <span class="n">protocol</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"kafka"</span><span class="p">,)</span>
@@ -622,6 +628,10 @@ window.runMermaid = runMermaid;</script>
         <span class="n">value_format</span><span class="o">=</span><span class="s2">"binary"</span><span class="p">,</span>
         <span class="n">value_schema</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">flatten_value</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">key_column</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">partition_column</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">timestamp_column</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">headers_column</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="o">**</span><span class="n">storage_options</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">storage_options</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">_FSSPEC_OPTIONS</span> <span class="o">&amp;</span> <span class="n">storage_options</span><span class="o">.</span><span class="n">keys</span><span class="p">()})</span>
@@ -638,6 +648,10 @@ window.runMermaid = runMermaid;</script>
             <span class="n">value_format</span><span class="o">=</span><span class="n">value_format</span><span class="p">,</span>
             <span class="n">value_schema</span><span class="o">=</span><span class="kc">None</span> <span class="k">if</span> <span class="n">value_schema</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">_schema_bytes</span><span class="p">(</span><span class="n">value_schema</span><span class="p">),</span>
             <span class="n">flatten_value</span><span class="o">=</span><span class="n">flatten_value</span><span class="p">,</span>
+            <span class="n">key_column</span><span class="o">=</span><span class="n">key_column</span><span class="p">,</span>
+            <span class="n">partition_column</span><span class="o">=</span><span class="n">partition_column</span><span class="p">,</span>
+            <span class="n">timestamp_column</span><span class="o">=</span><span class="n">timestamp_column</span><span class="p">,</span>
+            <span class="n">headers_column</span><span class="o">=</span><span class="n">headers_column</span><span class="p">,</span>
         <span class="p">)</span>
 
 <div class="viewcode-block" id="KafkaFileSystem.ls">
