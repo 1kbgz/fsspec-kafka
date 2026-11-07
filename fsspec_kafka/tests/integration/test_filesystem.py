@@ -173,6 +173,55 @@ def test_confluent_values_with_registry_schemas(options, empty_topic):
     assert value[:5] == b"\0" + schema_id.to_bytes(4, "big")
 
 
+ORDER_V1 = {"type": "record", "name": "Order", "fields": [{"name": "id", "type": "long"}]}
+ORDER_V2 = {"type": "record", "name": "Order", "fields": [{"name": "id", "type": "long"}, {"name": "note", "type": "string", "default": "none"}]}
+
+
+def test_avro_values_round_trip(options, empty_topic):
+    fs = fsspec.filesystem("kafka", **options, value_format="avro", value_schema=ORDER_V2, flatten_value=True, skip_instance_cache=True)
+    rows = pa.table({"id": [1, 2], "note": ["a", "b"]})
+
+    with fs.open(f"{empty_topic}/0.parquet", "ab") as file:
+        file.write(_encode(rows, "parquet"))
+    with fs.open(f"{empty_topic}/0.arrow") as file:
+        table = pyarrow.ipc.open_stream(file).read_all()
+
+    assert table.select(["id", "note"]).to_pylist() == rows.to_pylist()
+
+
+@pytest.mark.skipif(not SCHEMA_REGISTRY, reason="KAFKA_TEST_SCHEMA_REGISTRY not set")
+def test_confluent_avro_values_resolve_older_versions(options, empty_topic):
+    from fsspec_data import SchemaRef
+
+    def register(schema):
+        request = urllib.request.Request(
+            f"{SCHEMA_REGISTRY}/subjects/{empty_topic}-value/versions",
+            data=json.dumps({"schema": json.dumps(schema)}).encode(),
+            headers={"Content-Type": "application/vnd.schemaregistry.v1+json"},
+        )
+        with urllib.request.urlopen(request) as response:
+            return json.load(response)["id"]
+
+    def filesystem(version):
+        reference = SchemaRef(f"confluent://{empty_topic}-value/versions/{version}", storage_options={"registry_url": SCHEMA_REGISTRY})
+        return fsspec.filesystem("kafka", **options, value_format="confluent", value_schema=reference, flatten_value=True, skip_instance_cache=True)
+
+    old_id = register(ORDER_V1)
+    with filesystem(1).open(f"{empty_topic}/0.jsonl", "ab") as file:
+        file.write(b'{"id": 1}\n')
+    new_id = register(ORDER_V2)
+    with filesystem("latest").open(f"{empty_topic}/0.jsonl", "ab") as file:
+        file.write(b'{"id": 2, "note": "b"}\n')
+
+    with filesystem("latest").open(f"{empty_topic}/0.arrow") as file:
+        table = pyarrow.ipc.open_stream(file).read_all()
+    assert table.select(["id", "note"]).to_pylist() == [{"id": 1, "note": "none"}, {"id": 2, "note": "b"}]
+
+    with fsspec.open(f"kafka://{empty_topic}/0.arrow", **options) as file:
+        values = pyarrow.ipc.open_stream(file).read_all().column("value").to_pylist()
+    assert [value[:5] for value in values] == [b"\0" + schema_id.to_bytes(4, "big") for schema_id in (old_id, new_id)]
+
+
 def test_records_through_open_and_get_mapper(options, topic):
     with fsspec.open(f"kafka://{topic}/records/d", "wb", **options) as file:
         file.write(b"d")

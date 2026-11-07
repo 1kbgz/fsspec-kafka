@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use arrow::ipc::reader::StreamReader;
 use arrow::ipc::writer::StreamWriter;
-use fsspec_data::DataFormat;
+use fsspec_data::{AvroFraming, DataFormat};
 use fsspec_kafka::{
     KafkaFs, KafkaFsOptions, MessageColumns, MessageTail, RdKafkaBackend, StreamStart, ValueFormat,
 };
@@ -231,6 +231,8 @@ impl RustKafkaFs {
         value_format="binary",
         value_schema=None,
         value_schema_id=None,
+        avro_schema=None,
+        avro_writers=None,
         flatten_value=false,
         key_column=None,
         partition_column=None,
@@ -252,6 +254,8 @@ impl RustKafkaFs {
         value_format: &str,
         value_schema: Option<Vec<u8>>,
         value_schema_id: Option<u32>,
+        avro_schema: Option<String>,
+        avro_writers: Option<Vec<(u32, String)>>,
         flatten_value: bool,
         key_column: Option<String>,
         partition_column: Option<String>,
@@ -265,21 +269,32 @@ impl RustKafkaFs {
                     .map_err(|e| PyValueError::new_err(e.to_string()))
             })
             .transpose()?;
-        let value_format = match (value_format, schema) {
-            ("binary", None) if !flatten_value => ValueFormat::Binary,
-            ("json", Some(schema)) => ValueFormat::Json {
+        let value_format = match (value_format, schema, avro_schema) {
+            ("binary", None, None) if !flatten_value => ValueFormat::Binary,
+            ("json", Some(schema), None) => ValueFormat::Json {
                 schema,
                 flatten: flatten_value,
             },
-            ("confluent", Some(schema)) => ValueFormat::ConfluentJson {
+            ("confluent", Some(schema), None) => ValueFormat::ConfluentJson {
                 schema,
                 flatten: flatten_value,
                 schema_id: value_schema_id,
             },
+            ("avro", None, Some(avro_schema)) => {
+                ValueFormat::avro(avro_schema, AvroFraming::Unframed, None, flatten_value)
+                    .map_err(fs_error)?
+            }
+            ("confluent", None, Some(avro_schema)) => ValueFormat::avro(
+                avro_schema,
+                AvroFraming::Confluent(avro_writers.unwrap_or_default()),
+                value_schema_id,
+                flatten_value,
+            )
+            .map_err(fs_error)?,
             _ => {
                 return Err(PyValueError::new_err(
-                    "value_format must be 'binary', or 'json' or 'confluent' with a value_schema; \
-                     value_schema and flatten_value do not apply to 'binary'",
+                    "value_format must be 'binary', or 'json', 'confluent', or 'avro' with a \
+                     value_schema; value_schema and flatten_value do not apply to 'binary'",
                 ))
             }
         };

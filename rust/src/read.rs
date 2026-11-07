@@ -8,7 +8,9 @@ use arrow::array::{
 };
 use arrow::compute::{concat_batches, interleave};
 use arrow::datatypes::{DataType, Field, Fields, Schema, SchemaRef, TimeUnit};
-use fsspec_data::{CodecWriter, DataFormat, DEFAULT_REGISTRY};
+use fsspec_data::{
+    avro_arrow_schema, AvroFraming, AvroValueDecoder, CodecWriter, DataFormat, DEFAULT_REGISTRY,
+};
 use fsspec_rs::{FileInfo, FsError, FsFile, FsResult};
 
 use crate::backend::{Message, MessageStream};
@@ -31,15 +33,47 @@ pub enum ValueFormat {
         flatten: bool,
         schema_id: Option<u32>,
     },
+    /// Avro records read with the reader schema `avro_schema` (Avro JSON), whose Arrow form
+    /// is `schema`. With Confluent framing, older writer schemas resolve to the reader
+    /// schema. Appends write bare datums, or the Confluent wire format with `schema_id`.
+    /// Build with [`ValueFormat::avro`].
+    Avro {
+        schema: SchemaRef,
+        avro_schema: String,
+        framing: AvroFraming,
+        schema_id: Option<u32>,
+        flatten: bool,
+    },
 }
 
 impl ValueFormat {
-    /// The schema and `flatten` setting of JSON values, or `None` for binary values.
-    pub(crate) fn json(&self) -> Option<(&SchemaRef, bool)> {
+    /// Avro values with the reader schema `avro_schema` (Avro JSON).
+    pub fn avro(
+        avro_schema: String,
+        framing: AvroFraming,
+        schema_id: Option<u32>,
+        flatten: bool,
+    ) -> FsResult<Self> {
+        let schema = avro_arrow_schema(&avro_schema)
+            .map_err(|error| FsError::InvalidArgument(format!("invalid Avro schema: {error}")))?;
+        Ok(Self::Avro {
+            schema,
+            avro_schema,
+            framing,
+            schema_id,
+            flatten,
+        })
+    }
+
+    /// The schema and `flatten` setting of decoded values, or `None` for binary values.
+    pub(crate) fn decoded(&self) -> Option<(&SchemaRef, bool)> {
         match self {
             Self::Binary => None,
             Self::Json { schema, flatten }
             | Self::ConfluentJson {
+                schema, flatten, ..
+            }
+            | Self::Avro {
                 schema, flatten, ..
             } => Some((schema, *flatten)),
         }
@@ -66,7 +100,7 @@ pub fn message_schema(format: DataFormat, value: &ValueFormat) -> SchemaRef {
             false,
         ));
     }
-    match value.json() {
+    match value.decoded() {
         None => fields.push(Field::new("value", DataType::Binary, true)),
         Some((schema, false)) => fields.push(Field::new(
             "value",
@@ -171,18 +205,67 @@ pub(crate) fn message_batch(
             *value = confluent_payload(value)?;
         }
     }
-    match value.json() {
-        None => columns.push(Arc::new(BinaryArray::from(values))),
-        Some((schema, flatten)) => {
-            let decoded = decode_json(schema, &values)?;
+    let decoded = match value {
+        ValueFormat::Binary => None,
+        ValueFormat::Json { schema, .. } | ValueFormat::ConfluentJson { schema, .. } => {
+            Some(decode_json(schema, &values)?)
+        }
+        ValueFormat::Avro {
+            schema,
+            avro_schema,
+            framing,
+            ..
+        } => Some(decode_avro(schema, avro_schema, framing, &values)?),
+    };
+    match (decoded, value.decoded()) {
+        (Some(decoded), Some((_, flatten))) => {
             if flatten {
                 columns.extend_from_slice(decoded.columns());
             } else {
                 columns.push(Arc::new(decoded));
             }
         }
+        _ => columns.push(Arc::new(BinaryArray::from(values))),
     }
     RecordBatch::try_new(schema.clone(), columns).map_err(arrow_error)
+}
+
+/// Decodes one struct row per value, with null rows for tombstones.
+fn decode_avro(
+    schema: &Schema,
+    avro_schema: &str,
+    framing: &AvroFraming,
+    values: &[Option<&[u8]>],
+) -> FsResult<StructArray> {
+    let invalid = |error: fsspec_data::InterchangeError| {
+        FsError::Other(format!("invalid Avro value: {error}"))
+    };
+    let mut decoder = AvroValueDecoder::new(avro_schema, framing.clone(), values.len().max(1))
+        .map_err(invalid)?;
+    let mut indices = Vec::with_capacity(values.len());
+    let mut rows = 0;
+    for value in values {
+        match value {
+            None => indices.push((0, 0)),
+            Some(value) => {
+                decoder.push(value).map_err(invalid)?;
+                indices.push((1, rows));
+                rows += 1;
+            }
+        }
+    }
+    let fields = nullable_fields(schema);
+    let decoded = match decoder.flush().map_err(invalid)? {
+        Some(batch) => StructArray::try_new(fields.clone(), batch.columns().to_vec(), None)
+            .map_err(arrow_error)?,
+        None => StructArray::new_null(fields.clone(), 0),
+    };
+    let sources = [StructArray::new_null(fields, 1), decoded];
+    let arrays = sources.iter().map(|s| s as &dyn Array).collect::<Vec<_>>();
+    Ok(interleave(&arrays, &indices)
+        .map_err(arrow_error)?
+        .as_struct()
+        .clone())
 }
 
 /// The JSON after a Confluent wire format prefix.
@@ -513,6 +596,78 @@ mod tests {
         for value in [r#"{"id": 1}"#, "\0\0\0"] {
             assert!(batch(&confluent, &[Some(value)]).is_err(), "{value:?}");
         }
+    }
+
+    const ORDER_V1: &str = r#"{"type": "record", "name": "Order", "fields": [
+        {"name": "id", "type": "long"}]}"#;
+    const ORDER_V2: &str = r#"{"type": "record", "name": "Order", "fields": [
+        {"name": "id", "type": "long"},
+        {"name": "note", "type": "string", "default": "none"}]}"#;
+
+    /// One Avro value per row of `columns`, encoded with `schema`.
+    fn avro_values(schema: &str, schema_id: Option<u32>, columns: Vec<ArrayRef>) -> Vec<Vec<u8>> {
+        let mut encoder = fsspec_data::AvroValueEncoder::new(schema, schema_id).unwrap();
+        let batch = RecordBatch::try_new(encoder.schema(), columns).unwrap();
+        encoder.encode(&batch).unwrap()
+    }
+
+    fn avro_batch(value: &ValueFormat, values: &[Option<Vec<u8>>]) -> FsResult<RecordBatch> {
+        let messages = values
+            .iter()
+            .enumerate()
+            .map(|(offset, value)| Message {
+                value: value.clone(),
+                ..message(offset as i64, None)
+            })
+            .collect::<Vec<_>>();
+        let schema = message_schema(DataFormat::Arrow, value);
+        message_batch("orders", &schema, value, &messages)
+    }
+
+    #[test]
+    fn avro_values_resolve_writer_schemas_and_keep_tombstones() {
+        let old = avro_values(ORDER_V1, Some(1), vec![Arc::new(Int64Array::from(vec![1]))]);
+        let new = avro_values(
+            ORDER_V2,
+            Some(2),
+            vec![
+                Arc::new(Int64Array::from(vec![2])),
+                Arc::new(StringArray::from(vec!["x"])),
+            ],
+        );
+        let framing =
+            AvroFraming::Confluent(vec![(1, ORDER_V1.to_string()), (2, ORDER_V2.to_string())]);
+        let value = ValueFormat::avro(ORDER_V2.to_string(), framing, None, false).unwrap();
+        let batch =
+            avro_batch(&value, &[Some(old[0].clone()), None, Some(new[0].clone())]).unwrap();
+        let orders = batch.column_by_name("value").unwrap().as_struct();
+        assert!(orders.is_null(1));
+        assert_eq!(
+            orders
+                .column_by_name("id")
+                .unwrap()
+                .as_primitive::<Int64Type>(),
+            &Int64Array::from(vec![Some(1), None, Some(2)])
+        );
+        assert_eq!(
+            orders.column_by_name("note").unwrap().as_string::<i32>(),
+            &StringArray::from(vec![Some("none"), None, Some("x")])
+        );
+
+        let bare =
+            ValueFormat::avro(ORDER_V1.to_string(), AvroFraming::Unframed, None, true).unwrap();
+        let values = avro_values(ORDER_V1, None, vec![Arc::new(Int64Array::from(vec![3, 4]))]);
+        let batch = avro_batch(&bare, &values.into_iter().map(Some).collect::<Vec<_>>()).unwrap();
+        assert_eq!(
+            batch
+                .column_by_name("id")
+                .unwrap()
+                .as_primitive::<Int64Type>(),
+            &Int64Array::from(vec![3, 4])
+        );
+
+        assert!(avro_batch(&bare, &[Some(vec![0xff])]).is_err());
+        assert!(ValueFormat::avro("{".to_string(), AvroFraming::Unframed, None, false).is_err());
     }
 
     #[test]

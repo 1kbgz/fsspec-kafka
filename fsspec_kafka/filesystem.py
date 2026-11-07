@@ -1,7 +1,9 @@
 import io
+import json
 from collections.abc import Mapping
 from datetime import datetime
 
+import fsspec
 from fsspec import AbstractFileSystem
 
 from .fsspec_kafka import RustKafkaFs
@@ -28,10 +30,13 @@ class KafkaFileSystem(AbstractFileSystem):
     With ``value_format="json"``, values are JSON objects decoded with ``value_schema``.
     Decoded fields are nested in a ``value`` struct column, or placed beside the message
     columns with ``flatten_value=True``. ``value_format="confluent"`` reads JSON in Confluent
-    wire format. ``value_schema`` is a ``pyarrow.Schema`` or a schema reference that
-    fsspec-data resolves, such as ``"confluent://orders-value/versions/latest"`` with
-    ``storage_options={"registry_url": ...}`` in a ``fsspec_data.SchemaRef``. A Confluent
-    reference also gives the schema ID written when appending.
+    wire format, with JSON Schema or Avro subjects. ``value_format="avro"`` reads bare Avro
+    records. ``value_schema`` is a ``pyarrow.Schema`` or a schema reference that fsspec-data
+    resolves, such as ``"confluent://orders-value/versions/latest"`` with
+    ``storage_options={"registry_url": ...}`` in a ``fsspec_data.SchemaRef``. For Avro it is
+    an ``.avsc`` reference, an Avro schema dict, or a Confluent Avro subject, whose registered
+    versions are used to read older messages. A Confluent reference also gives the schema ID
+    written when appending.
 
     Opening ``topic.format`` or ``topic/partition.format`` with mode ``"ab"`` appends a file
     as one message per row. ``key_column``, ``partition_column``, ``timestamp_column``, and
@@ -63,7 +68,6 @@ class KafkaFileSystem(AbstractFileSystem):
         **storage_options,
     ):
         super().__init__(**{key: storage_options.pop(key) for key in _FSSPEC_OPTIONS & storage_options.keys()})
-        value_schema, value_schema_id = _value_schema(value_schema)
         self._rust = RustKafkaFs(
             {key: _property(value) for key, value in storage_options.items()},
             timeout=timeout,
@@ -75,8 +79,7 @@ class KafkaFileSystem(AbstractFileSystem):
             replication=replication,
             topic_config={key: _property(value) for key, value in (topic_config or {}).items()},
             value_format=value_format,
-            value_schema=None if value_schema is None else _schema_bytes(value_schema),
-            value_schema_id=value_schema_id,
+            **_value_schema(value_format, value_schema),
             flatten_value=flatten_value,
             key_column=key_column,
             partition_column=partition_column,
@@ -130,20 +133,39 @@ class KafkaFileSystem(AbstractFileSystem):
         return KafkaStream(self._rust.stream(self._strip_protocol(path), _stream_start(start)))
 
 
-def _value_schema(value_schema):
-    """The Arrow schema of ``value_schema`` and its Confluent schema ID, if it has one."""
+def _value_schema(value_format, value_schema):
+    """Keyword arguments for RustKafkaFs describing ``value_schema``: an Arrow schema for JSON
+    values, or Avro schema JSON for Avro values, and the Confluent schema ID if it has one."""
     if value_schema is None:
-        return None, None
-    from fsspec_data import DEFAULT_SCHEMA_RESOLVERS, SchemaRef
+        return {}
+    import pyarrow as pa
+
+    if isinstance(value_schema, pa.Schema):
+        return {"value_schema": _schema_bytes(value_schema)}
+    if value_format == "avro" and isinstance(value_schema, Mapping) and "url" not in value_schema:
+        return {"avro_schema": json.dumps(value_schema)}
+    from fsspec_data import DEFAULT_SCHEMA_RESOLVERS, SchemaRef, json_schema_to_arrow
+    from fsspec_data.confluent import fetch_confluent_schema, fetch_confluent_versions
     from fsspec_data.schema import normalize_schema
 
     schema = normalize_schema(value_schema)
     if not isinstance(schema, SchemaRef):
-        return schema, None
-    resolved = DEFAULT_SCHEMA_RESOLVERS.resolve(schema)
-    provenance = resolved.provenance
-    schema_id = int(provenance.identifier) if provenance.provider == "confluent" and provenance.identifier else None
-    return resolved.schema, schema_id
+        return {"value_schema": _schema_bytes(schema)}
+    if schema.url.startswith("confluent://"):
+        document = fetch_confluent_schema(schema.url, schema.storage_options)
+        if document.references:
+            raise ValueError("Confluent schema references are not supported")
+        schema_id = None if document.schema_id is None else int(document.schema_id)
+        if document.schema_type != "AVRO":
+            return {"value_schema": _schema_bytes(json_schema_to_arrow(json.loads(document.schema))), "value_schema_id": schema_id}
+        # Messages may have been written with any registered version of the subject.
+        versions = fetch_confluent_versions(schema.url, schema.storage_options)
+        writers = [(int(version.schema_id), version.schema) for version in versions if version.schema_id is not None]
+        return {"avro_schema": document.schema, "avro_writers": writers, "value_schema_id": schema_id}
+    if value_format == "avro":
+        with fsspec.open(schema.url, "rb", **schema.storage_options) as file:
+            return {"avro_schema": file.read().decode()}
+    return {"value_schema": _schema_bytes(DEFAULT_SCHEMA_RESOLVERS.resolve(schema).schema)}
 
 
 def _schema_bytes(schema):

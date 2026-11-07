@@ -72,7 +72,7 @@ impl<B: KafkaBackend> KafkaFs<B> {
                 "window_size and batch_size must be positive".to_string(),
             ));
         }
-        if let Some((schema, true)) = options.value_format.json() {
+        if let Some((schema, true)) = options.value_format.decoded() {
             let envelope = message_schema(DataFormat::Arrow, &ValueFormat::Binary);
             if let Some(field) = schema
                 .fields()
