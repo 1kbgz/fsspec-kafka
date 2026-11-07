@@ -12,6 +12,7 @@ mod path;
 mod read;
 mod records;
 mod stream;
+mod write;
 
 pub use backend::{
     KafkaBackend, LiveMessages, Message, MessageOffset, MessageStream, NewMessage, PartitionInfo,
@@ -22,6 +23,7 @@ pub use path::{KafkaPath, MetaFile, Window};
 pub use read::{message_schema, EncodedFile, MessageBatches, ValueFormat};
 pub use records::{RecordIndex, RecordLocation, RECORDS_TOPIC_CONFIG};
 pub use stream::{MessageTail, StreamStart};
+pub use write::{MessageColumns, MessageWriter};
 
 /// Version of the linked librdkafka.
 pub fn librdkafka_version() -> String {

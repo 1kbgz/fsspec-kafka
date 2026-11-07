@@ -386,7 +386,7 @@ impl FsFile for EncodedFile {
     }
 }
 
-fn arrow_error(error: arrow::error::ArrowError) -> FsError {
+pub(crate) fn arrow_error(error: arrow::error::ArrowError) -> FsError {
     FsError::Other(error.to_string())
 }
 

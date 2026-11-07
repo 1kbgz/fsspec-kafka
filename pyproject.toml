@@ -41,7 +41,7 @@ develop = [
     "check-dist",
     "cibuildwheel",
     "codespell",
-    "fsspec-rs",
+    "fsspec-rs>=0.1.6",
     "hatch-rs",
     "hatchling",
     "mdformat",
