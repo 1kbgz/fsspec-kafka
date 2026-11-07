@@ -1,3 +1,4 @@
+import json
 import pickle
 
 import fsspec
@@ -39,6 +40,7 @@ def test_invalid_options_are_rejected():
         {"value_format": "avro", "value_schema": pa.schema([("id", pa.int64())])},
         {"value_schema": pa.schema([("id", pa.int64())])},
         {"flatten_value": True},
+        {"value_format": "avro", "value_schema": {"type": "record", "name": "Order", "fields": [{"name": "id", "type": "nope"}]}},
         {"value_format": "json", "value_schema": pa.schema([("offset", pa.int64())]), "flatten_value": True},
     ],
 )
@@ -55,8 +57,25 @@ def test_value_schemas_can_be_fsspec_data_schemas(tmp_path):
     path.write_text('{"type": "object", "properties": {"id": {"type": "integer"}}}')
     KafkaFileSystem(**OPTIONS, value_format="confluent", value_schema={"url": str(path), "format": "json-schema"})
 
+    avro = {"type": "record", "name": "Order", "fields": [{"name": "id", "type": "long"}]}
+    KafkaFileSystem(**OPTIONS, value_format="avro", value_schema=avro)
+    path = tmp_path / "order.avsc"
+    path.write_text(json.dumps(avro))
+    KafkaFileSystem(**OPTIONS, value_format="avro", value_schema=str(path))
+
     with pytest.raises(FileNotFoundError):
         KafkaFileSystem(**OPTIONS, value_format="json", value_schema={"url": str(tmp_path / "missing.json"), "format": "json-schema"})
+
+
+def test_confluent_schema_references_are_rejected(monkeypatch):
+    import fsspec_data.confluent
+
+    document = fsspec_data.confluent.ConfluentSchemaDocument("{}", "AVRO", "orders-value", "1", "4", ({"name": "base"},))
+    monkeypatch.setattr(fsspec_data.confluent, "fetch_confluent_schema", lambda url, options: document)
+    reference = {"url": "confluent://orders-value/versions/latest", "storage_options": {"registry_url": "http://registry"}}
+
+    with pytest.raises(ValueError, match="references"):
+        KafkaFileSystem(**OPTIONS, value_format="confluent", value_schema=reference)
 
 
 def test_filesystem_pickles_from_its_options():

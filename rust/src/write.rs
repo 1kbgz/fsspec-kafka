@@ -7,7 +7,7 @@ use arrow::csv::reader::Format;
 use arrow::datatypes::{
     DataType, Field, Int32Type, Schema, SchemaRef, TimeUnit, TimestampMillisecondType,
 };
-use fsspec_data::{DataFormat, DEFAULT_REGISTRY};
+use fsspec_data::{AvroFraming, AvroValueEncoder, DataFormat, DEFAULT_REGISTRY};
 use fsspec_rs::{FileInfo, FsError, FsFile, FsResult};
 
 use crate::backend::{KafkaBackend, NewMessage};
@@ -161,7 +161,7 @@ fn text_schema(
         .into_iter()
         .filter_map(|(name, data_type)| Some(Field::new(name.as_ref()?, data_type, true)))
         .collect::<Vec<_>>();
-    match value.json() {
+    match value.decoded() {
         None => fields.push(Field::new("value", DataType::Utf8, true)),
         Some((schema, _)) => fields.extend(
             schema
@@ -320,7 +320,7 @@ fn row_headers(
 }
 
 /// One value per row: the single value column as bytes, or the value columns as a JSON
-/// object.
+/// object or Avro record.
 fn encode_values(values: &RecordBatch, value: &ValueFormat) -> FsResult<Vec<Option<Vec<u8>>>> {
     match value {
         ValueFormat::Binary => {
@@ -363,6 +363,55 @@ fn encode_values(values: &RecordBatch, value: &ValueFormat) -> FsResult<Vec<Opti
                 .split(|&byte| byte == b'\n')
                 .take(values.num_rows())
                 .map(|line| Some([&prefix, line].concat()))
+                .collect())
+        }
+        ValueFormat::Avro {
+            avro_schema,
+            framing,
+            schema_id,
+            ..
+        } => {
+            let schema_id = match (framing, schema_id) {
+                (AvroFraming::Unframed, _) => None,
+                (AvroFraming::Confluent(_), Some(id)) => Some(*id),
+                (AvroFraming::Confluent(_), None) => {
+                    return Err(FsError::InvalidArgument(
+                        "appending Confluent values needs a schema ID".to_string(),
+                    ))
+                }
+            };
+            let avro_error =
+                |error: fsspec_data::InterchangeError| FsError::Other(error.to_string());
+            let mut encoder = AvroValueEncoder::new(avro_schema, schema_id).map_err(avro_error)?;
+            let target = encoder.schema();
+            if let Some(field) = values
+                .schema()
+                .fields()
+                .iter()
+                .find(|field| target.column_with_name(field.name()).is_none())
+            {
+                return Err(FsError::InvalidArgument(format!(
+                    "column {} is not a field of the Avro schema",
+                    field.name()
+                )));
+            }
+            let columns = target
+                .fields()
+                .iter()
+                .map(|field| match values.column_by_name(field.name()) {
+                    Some(column) => cast(column, field.data_type()).map_err(arrow_error),
+                    None => Ok(arrow::array::new_null_array(
+                        field.data_type(),
+                        values.num_rows(),
+                    )),
+                })
+                .collect::<FsResult<Vec<_>>>()?;
+            let batch = RecordBatch::try_new(target, columns).map_err(arrow_error)?;
+            Ok(encoder
+                .encode(&batch)
+                .map_err(avro_error)?
+                .into_iter()
+                .map(Some)
                 .collect())
         }
     }
@@ -516,6 +565,95 @@ mod tests {
                 jsonl,
                 DataFormat::JsonLines,
                 &confluent(None),
+                &MessageColumns::default(),
+                None
+            ),
+            Err(FsError::InvalidArgument(_))
+        ));
+    }
+
+    #[test]
+    fn avro_values_are_encoded_from_matching_columns() {
+        let schema = r#"{"type": "record", "name": "Order", "fields": [
+            {"name": "id", "type": "long"}, {"name": "note", "type": ["null", "string"]}]}"#;
+        let confluent = |schema_id| {
+            ValueFormat::avro(
+                schema.to_string(),
+                AvroFraming::Confluent(vec![(7, schema.to_string())]),
+                schema_id,
+                true,
+            )
+            .unwrap()
+        };
+        let key = MessageColumns {
+            key: Some("k".into()),
+            ..MessageColumns::default()
+        };
+        let messages = file_messages(
+            b"k,id\na,1\n",
+            DataFormat::Csv,
+            &confluent(Some(7)),
+            &key,
+            None,
+        )
+        .unwrap();
+        let value = messages[0].value.clone().unwrap();
+        assert_eq!(value[..5], [0, 0, 0, 0, 7]);
+        let mut decoder = fsspec_data::AvroValueDecoder::new(
+            schema,
+            AvroFraming::Confluent(vec![(7, schema.to_string())]),
+            1,
+        )
+        .unwrap();
+        decoder.push(&value).unwrap();
+        let decoded = decoder.flush().unwrap().unwrap();
+        assert_eq!(
+            decoded
+                .column(0)
+                .as_primitive::<arrow::datatypes::Int64Type>()
+                .value(0),
+            1
+        );
+        assert!(decoded.column(1).is_null(0));
+
+        assert!(matches!(
+            file_messages(
+                b"k,id\na,1\n",
+                DataFormat::Csv,
+                &confluent(None),
+                &key,
+                None
+            ),
+            Err(FsError::InvalidArgument(_))
+        ));
+        let bare =
+            ValueFormat::avro(schema.to_string(), AvroFraming::Unframed, None, true).unwrap();
+        let jsonl = br#"{"id": 1, "extra": 2}"#;
+        let arrow = {
+            let batch = RecordBatch::try_from_iter([
+                ("id", Arc::new(Int64Array::from(vec![1])) as ArrayRef),
+                ("extra", Arc::new(Int64Array::from(vec![2]))),
+            ])
+            .unwrap();
+            DEFAULT_REGISTRY
+                .get(DataFormat::Arrow)
+                .unwrap()
+                .encode(batch.schema(), &[batch])
+                .unwrap()
+        };
+        assert!(file_messages(
+            jsonl,
+            DataFormat::JsonLines,
+            &bare,
+            &MessageColumns::default(),
+            None
+        )
+        .is_ok());
+        assert!(matches!(
+            file_messages(
+                &arrow,
+                DataFormat::Arrow,
+                &bare,
                 &MessageColumns::default(),
                 None
             ),

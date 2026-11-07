@@ -36,6 +36,8 @@ class RustKafkaFs:
         value_format: str = ...,
         value_schema: bytes | None = ...,
         value_schema_id: int | None = ...,
+        avro_schema: str | None = ...,
+        avro_writers: list[tuple[int, str]] | None = ...,
         flatten_value: bool = ...,
         key_column: str | None = ...,
         partition_column: str | None = ...,
