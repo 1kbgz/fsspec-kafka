@@ -10,8 +10,8 @@ path = "rust/python/lib.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
-arrow = { version = "54.3.1", default-features = false, features = ["ipc"] }
-fsspec_data = "0.3.0"
+arrow = { version = "60.1.0", default-features = false, features = ["ipc"] }
+fsspec_data = "0.4.0"
 fsspec_kafka = { path = "./rust", version = "*" }
 fsspec_rs = "0.1.5"
 pyo3 = { version = "0.30.1", features = ["abi3", "extension-module", "multiple-pymethods"] }
