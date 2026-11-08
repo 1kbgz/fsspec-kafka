@@ -29,10 +29,6 @@ rdkafka = { version = "0.39.0", default-features = false, features = ["cmake-bui
 [target.'cfg(windows)'.dependencies]
 rdkafka = { version = "0.39.0", default-features = false, features = ["cmake-build", "curl-static", "ssl-vendored", "zstd", "libz", "naive-runtime"] }
 
-[profile.test.junit]
-path = "junit.xml"
-
 [dev-dependencies]
 bytes = "1"
 parquet = "60.1.0"
-
