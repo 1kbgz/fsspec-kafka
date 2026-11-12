@@ -83,5 +83,14 @@ with fs.stream("orders", start="beginning") as stream:
         save(stream.positions)  # {partition: next offset}, to resume with start=positions
 ```
 
+From Rust, register the `kafka` protocol with an fsspec-rs `FilesystemRegistry` and open URLs with the same storage options. `value_format` accepts only `binary` here, and `topic_config.<name>` keys set the configuration of created topics; construct `KafkaFs` with `KafkaFsOptions` for decoded values.
+
+```rust
+let mut registry = fsspec_rs::FilesystemRegistry::default();
+fsspec_kafka::register(&mut registry);
+let options = [("bootstrap.servers".to_string(), "localhost:9092".to_string())].into();
+let (fs, path) = registry.url_to_fs("kafka://orders/0", &options)?;
+```
+
 > [!NOTE]
 > This library was generated using [copier](https://copier.readthedocs.io/en/stable/) from the [Base Python Project Template repository](https://github.com/python-project-templates/base).

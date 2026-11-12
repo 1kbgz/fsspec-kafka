@@ -7,6 +7,7 @@ use rdkafka::error::KafkaResult;
 use rdkafka::util::get_rdkafka_version;
 
 mod backend;
+mod factory;
 mod fs;
 mod path;
 mod read;
@@ -18,6 +19,7 @@ pub use backend::{
     KafkaBackend, LiveMessages, Message, MessageOffset, MessageStream, NewMessage, PartitionInfo,
     PartitionRange, RdKafkaBackend, TopicInfo, Watermarks,
 };
+pub use factory::{register, KafkaFsFactory};
 pub use fs::{windows, KafkaFs, KafkaFsOptions};
 pub use path::{KafkaPath, MetaFile, Window};
 pub use read::{message_schema, EncodedFile, MessageBatches, ValueFormat};
