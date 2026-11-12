@@ -5,6 +5,7 @@ use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 
 mod fs;
+mod registry;
 
 /// Version of the linked librdkafka.
 #[pyfunction]
@@ -28,6 +29,8 @@ fn list_topics(py: Python, config: HashMap<String, String>, timeout: f64) -> PyR
 
 #[pymodule]
 fn fsspec_kafka(m: &Bound<PyModule>) -> PyResult<()> {
+    registry::register()?;
+    m.add_function(wrap_pyfunction!(registry::linked_to_libfsspec, m)?)?;
     m.add_function(wrap_pyfunction!(librdkafka_version, m)?)?;
     m.add_function(wrap_pyfunction!(builtin_features, m)?)?;
     m.add_function(wrap_pyfunction!(list_topics, m)?)?;
