@@ -31,6 +31,7 @@ Functions
 
    fsspec_kafka.builtin_features
    fsspec_kafka.librdkafka_version
+   fsspec_kafka.linked_to_libfsspec
    fsspec_kafka.list_topics
 
 
@@ -409,6 +410,8 @@ Package Contents
 .. py:function:: builtin_features() -> list[str]
 
 .. py:function:: librdkafka_version() -> str
+
+.. py:function:: linked_to_libfsspec() -> bool
 
 .. py:function:: list_topics(config: dict[str, str], timeout: float = 10.0) -> list[str]
 

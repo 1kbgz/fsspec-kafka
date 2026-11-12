@@ -1,0 +1,51 @@
+test_registry
+=============
+
+.. py:module:: test_registry
+
+.. autoapi-nested-parse::
+
+   The kafka protocol is registered in libfsspec, so any consumer of the shared library can open it.
+
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   test_registry.String
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   test_registry.lib
+   test_registry.test_kafka_is_registered_in_the_shared_registry
+   test_registry.test_libfsspec_opens_kafka_urls
+
+
+Module Contents
+---------------
+
+.. py:class:: String
+
+   Bases: :py:obj:`ctypes.Structure`
+
+
+   Structure base class
+
+   Initialize self.  See help(type(self)) for accurate signature.
+
+
+   .. py:attribute:: _fields_
+
+
+.. py:function:: lib()
+
+.. py:function:: test_kafka_is_registered_in_the_shared_registry()
+
+.. py:function:: test_libfsspec_opens_kafka_urls(lib)
+
