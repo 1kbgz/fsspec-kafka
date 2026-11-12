@@ -17,7 +17,7 @@ class String(Structure):
 
 @pytest.fixture(scope="module")
 def lib():
-    if not fsspec_kafka.linked_to_libfsspec():
+    if not fsspec_kafka.linked_to_libfsspec():  # pragma: no cover
         pytest.skip("this build keeps its own registry")
     name = {"win32": "fsspec.dll", "darwin": "libfsspec.dylib"}.get(platform, "libfsspec.so")
     lib = CDLL(str(Path(fsspec_rs.get_library_dirs()[0]) / name))
