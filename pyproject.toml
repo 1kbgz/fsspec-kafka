@@ -33,6 +33,7 @@ classifiers = [
 
 dependencies = [
     "fsspec",
+    "fsspec-data>=0.8.0,<0.9",
     "fsspec-rs>=0.2.1,<0.3",
 ]
 
@@ -43,7 +44,6 @@ develop = [
     "check-dist",
     "cibuildwheel",
     "codespell",
-    "fsspec-data>=0.4.0",
     "hatch-rs>=0.6.1",
     "hatchling",
     "mdformat",

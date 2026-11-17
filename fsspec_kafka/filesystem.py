@@ -4,8 +4,8 @@ from collections.abc import Mapping
 from datetime import datetime
 
 import fsspec
-from fsspec import AbstractFileSystem
 
+from .describe import KafkaDataSource
 from .fsspec_kafka import RustKafkaFs
 
 __all__ = (
@@ -27,7 +27,7 @@ def _property(value):
     return str(value)
 
 
-class KafkaFileSystem(AbstractFileSystem):
+class KafkaFileSystem(KafkaDataSource):
     """Kafka topics as an fsspec filesystem, with partitions of fixed offset windows.
 
     Registered as ``kafka+offset`` and ``kafka``. ``topic/partition/start-end.arrow`` is a
@@ -36,6 +36,9 @@ class KafkaFileSystem(AbstractFileSystem):
     ``.jsonl`` formats. ``metadata`` describes a topic or partition. The other protocols
     arrange the same messages differently: ``kafka+time`` by timestamp, ``kafka+records``
     as the latest value of each key, and ``kafka+history`` as every message of each key.
+
+    Each filesystem is an fsspec-data ``DataSource``, so ``dataview::kafka+time://...``
+    renders its topics, partitions, buckets, and keys as Parquet, CSV, and JSON files.
 
     Storage options other than the named arguments are librdkafka properties, for example
     ``fsspec.filesystem("kafka", **{"bootstrap.servers": "localhost:9092"})``. They can also
@@ -111,11 +114,6 @@ class KafkaFileSystem(AbstractFileSystem):
 
     def info(self, path, **kwargs):
         return self._rust.info(self._strip_protocol(path))
-
-    def metadata(self, path):
-        """Partitions, leaders, replicas, in-sync replicas, and low and high watermarks of a
-        topic or partition, and the configuration of a topic."""
-        return json.loads(self._rust.metadata(self._strip_protocol(path)))
 
     def offsets_for_time(self, path, time):
         """The first offset at or after ``time`` in each partition of a topic, or of one
