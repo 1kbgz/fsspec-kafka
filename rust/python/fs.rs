@@ -343,6 +343,17 @@ impl RustKafkaFs {
         info_dict(py, info)
     }
 
+    /// The first offset at or after `timestamp_ms` in each partition of a topic or partition.
+    fn offsets_for_time(
+        &self,
+        py: Python<'_>,
+        path: &str,
+        timestamp_ms: i64,
+    ) -> PyResult<BTreeMap<i32, i64>> {
+        py.detach(|| self.inner.offsets_for_time(path, timestamp_ms))
+            .map_err(fs_error)
+    }
+
     /// Metadata of a topic or partition as JSON.
     fn metadata(&self, py: Python<'_>, path: &str) -> PyResult<String> {
         let value = py.detach(|| self.inner.metadata(path)).map_err(fs_error)?;

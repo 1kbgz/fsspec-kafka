@@ -153,6 +153,45 @@ impl<B: KafkaBackend> KafkaFs<B> {
         ))
     }
 
+    /// The first offset of each partition of a topic, or of one `kafka+offset` partition,
+    /// whose timestamp is at or after `timestamp_ms`. Partitions without such a message map to
+    /// their high watermark. Offsets come from the broker's time index.
+    pub fn offsets_for_time(&self, path: &str, timestamp_ms: i64) -> FsResult<BTreeMap<i32, i64>> {
+        let (topic, partitions) = match self.resolve(path)? {
+            KafkaPath::Topic(topic) => {
+                let ids = self
+                    .backend
+                    .topic(&topic)?
+                    .partitions
+                    .iter()
+                    .map(|p| p.id)
+                    .collect();
+                (topic, ids)
+            }
+            KafkaPath::Partition(topic, partition) => {
+                self.partition(&topic, partition)?;
+                (topic, vec![partition])
+            }
+            path => {
+                return Err(FsError::InvalidArgument(format!(
+                    "only topics and partitions have offsets: {}",
+                    path.to_path()
+                )))
+            }
+        };
+        partitions
+            .into_iter()
+            .map(|partition| {
+                let marks = self.backend.watermarks(&topic, partition)?;
+                let offset = self
+                    .backend
+                    .offset_for_time(&topic, partition, timestamp_ms)?
+                    .map_or(marks.high, |offset| offset.clamp(marks.low, marks.high));
+                Ok((partition, offset))
+            })
+            .collect()
+    }
+
     /// Metadata of a topic or `kafka+offset` partition: leaders, replicas, in-sync replicas,
     /// and watermarks, plus the configuration of a topic.
     pub fn metadata(&self, path: &str) -> FsResult<Value> {
@@ -1332,6 +1371,23 @@ mod tests {
         assert!(fs.info("events.csv").unwrap().is_dir());
         assert_eq!(names(fs.ls("events.csv", true).unwrap()), ["events.csv/0"]);
         assert!(fs.info("orders.csv").unwrap().is_file());
+    }
+
+    #[test]
+    fn offsets_for_time_cover_each_partition() {
+        let fs = fs();
+        assert_eq!(
+            fs.offsets_for_time("orders", 1_022).unwrap(),
+            BTreeMap::from([(0, 22), (1, 7)])
+        );
+        assert_eq!(
+            fs.offsets_for_time("kafka://orders/0", 9_999).unwrap(),
+            BTreeMap::from([(0, 25)])
+        );
+        assert!(matches!(
+            fs.offsets_for_time("orders/0/0-9.arrow", 0),
+            Err(FsError::InvalidArgument(_))
+        ));
     }
 
     #[test]

@@ -77,7 +77,7 @@ with fs.open("orders.parquet", "ab") as file:
 
 Options can also come from fsspec configuration, for example `FSSPEC_KAFKA='{"bootstrap.servers": "localhost:9092"}'`.
 
-`fs.metadata("orders")` returns a topic's configuration and, for each partition, its leader, replicas, in-sync replicas, and low and high watermarks. `fs.metadata("orders/0")` returns one partition's.
+`fs.metadata("orders")` returns a topic's configuration and, for each partition, its leader, replicas, in-sync replicas, and low and high watermarks. `fs.metadata("orders/0")` returns one partition's. `fs.offsets_for_time("orders", time)` returns the first offset at or after a time in each partition.
 
 `kafka+time` nests UTC time buckets from years down to `time_bucket`, which defaults to milliseconds. Each bucket is a directory of the next level, and with an extension, such as `orders/2026/11.parquet`, a file of its messages. Buckets at the `time_bucket` level and the ISO weeks in `topic/weeks/` are listed as files. Listings cover the time between a topic's first and last messages. Reads use the broker's time index, which assumes timestamps increase with offsets within a partition.
 

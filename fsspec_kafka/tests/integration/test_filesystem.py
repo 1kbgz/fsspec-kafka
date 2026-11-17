@@ -81,6 +81,12 @@ def test_metadata_describes_topics_and_partitions(options, topic):
     assert fs.metadata(f"{topic}/0") == metadata["partitions"][0]
 
 
+def test_offsets_for_time(options, topic):
+    fs = fsspec.filesystem("kafka", **options)
+    assert fs.offsets_for_time(topic, datetime(2000, 1, 1, tzinfo=UTC)) == {0: 0}
+    assert fs.offsets_for_time(f"{topic}/0", (datetime.now(UTC) + timedelta(hours=1)).isoformat()) == {0: 3}
+
+
 def test_time_buckets_hold_messages_by_timestamp(options, topic):
     fs = fsspec.filesystem("kafka+time", **options, time_bucket="day")
     now = datetime.now(UTC)

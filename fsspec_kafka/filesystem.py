@@ -117,6 +117,14 @@ class KafkaFileSystem(AbstractFileSystem):
         topic or partition, and the configuration of a topic."""
         return json.loads(self._rust.metadata(self._strip_protocol(path)))
 
+    def offsets_for_time(self, path, time):
+        """The first offset at or after ``time`` in each partition of a topic, or of one
+        ``kafka+offset`` partition, as ``{partition: offset}``. Partitions without such a
+        message map to their high watermark. ``time`` is a ``datetime`` or ISO 8601 string."""
+        if isinstance(time, str):
+            time = datetime.fromisoformat(time)
+        return self._rust.offsets_for_time(self._strip_protocol(path), int(time.timestamp() * 1000))
+
     def _open(self, path, mode="rb", block_size=None, autocommit=True, cache_options=None, **kwargs):
         return KafkaFile(self, path, mode, self._rust.open(self._strip_protocol(path), mode))
 
