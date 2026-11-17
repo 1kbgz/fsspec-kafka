@@ -61,8 +61,6 @@ class FakeKafka(KafkaDataSource):
         self.opened.append(path)
         if path == "state/a":
             return io.BytesIO(b"a")
-        if path == "events/a":
-            return io.BytesIO(b'{"offset": 0, "value": "x"}\n')
         return io.BytesIO(_arrow(MESSAGES))
 
 
