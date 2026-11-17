@@ -12,8 +12,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use fsspec_data::DataFormat;
 use fsspec_kafka::{
-    KafkaBackend, KafkaFs, KafkaFsOptions, MessageColumns, MessageOffset, MessageTail, NewMessage,
-    RdKafkaBackend, StreamStart, ValueFormat,
+    KafkaBackend, KafkaFs, KafkaFsOptions, KafkaView, MessageColumns, MessageOffset, MessageTail,
+    NewMessage, RdKafkaBackend, StreamStart, TimeLevel, ValueFormat,
 };
 use fsspec_rs::{FileSystem, FsError, OpenMode};
 use rdkafka::admin::{AdminClient, AdminOptions, NewTopic, TopicReplication};
@@ -99,10 +99,16 @@ fn bootstrap() -> Option<String> {
 }
 
 fn filesystem(bootstrap: &str) -> KafkaFs<RdKafkaBackend> {
+    view_filesystem(bootstrap, KafkaView::Offset)
+}
+
+fn view_filesystem(bootstrap: &str, view: KafkaView) -> KafkaFs<RdKafkaBackend> {
     let config = HashMap::from([("bootstrap.servers".to_string(), bootstrap.to_string())]);
     KafkaFs::new(
         RdKafkaBackend::new(&config, TIMEOUT).unwrap(),
         KafkaFsOptions {
+            view,
+            time_bucket: TimeLevel::Second,
             window_size: 10,
             list_format: DataFormat::Arrow,
             batch_size: 4,
@@ -126,11 +132,7 @@ fn lists_topics_partitions_and_windows() {
     assert!(names(fs.ls("", true).unwrap()).contains(name));
     assert_eq!(
         names(fs.ls(name, true).unwrap()),
-        [
-            format!("{name}/_meta"),
-            format!("{name}/0"),
-            format!("{name}/1")
-        ]
+        [format!("{name}/0"), format!("{name}/1")]
     );
     assert_eq!(
         names(fs.ls(&format!("kafka://{name}/0"), true).unwrap()),
@@ -149,26 +151,18 @@ fn lists_topics_partitions_and_windows() {
 }
 
 #[test]
-fn reads_meta_files() {
+fn reads_topic_and_partition_metadata() {
     let Some(bootstrap) = bootstrap() else { return };
     let topic = Topic::create(&bootstrap, 1, 3);
     let fs = filesystem(&bootstrap);
-    let read = |file: &str| {
-        let mut text = String::new();
-        fs.open(
-            &format!("{}/_meta/{file}", topic.name),
-            OpenMode::Read,
-            None,
-        )
-        .unwrap()
-        .read_to_string(&mut text)
-        .unwrap();
-        serde_json::from_str::<serde_json::Value>(&text).unwrap()
-    };
+    let metadata = fs.metadata(&topic.name).unwrap();
 
-    assert!(read("config.json")["cleanup.policy"].is_string());
-    assert_eq!(read("watermarks.json")[0]["high"], 3);
-    assert_eq!(read("partitions.json")[0]["partition"], 0);
+    assert!(metadata["config"]["cleanup.policy"].is_string());
+    assert_eq!(metadata["partitions"][0]["high"], 3);
+    assert_eq!(
+        fs.metadata(&format!("{}/0", topic.name)).unwrap(),
+        metadata["partitions"][0]
+    );
 }
 
 #[test]
@@ -211,7 +205,7 @@ fn finds_offsets_by_time() {
 }
 
 #[test]
-fn reads_from_a_timestamp() {
+fn reads_time_buckets() {
     let Some(bootstrap) = bootstrap() else { return };
     let topic = Topic::create(&bootstrap, 1, 0);
     let start = SystemTime::now()
@@ -231,23 +225,26 @@ fn reads_from_a_timestamp() {
             .unwrap();
     }
     topic.producer.flush(TIMEOUT).unwrap();
-    let fs = filesystem(&bootstrap);
-    let path = |ms: i64| {
-        let time = chrono::DateTime::from_timestamp_millis(ms)
-            .unwrap()
-            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
-        format!("{}/0/@{time}.parquet", topic.name)
+    let fs = view_filesystem(&bootstrap, KafkaView::Time);
+    let path = |ms: i64, pattern: &str| {
+        let time = chrono::DateTime::from_timestamp_millis(ms).unwrap();
+        format!("{}/{}", topic.name, time.format(pattern))
     };
 
+    assert!(names(fs.ls(&path(start, "%Y/%m/%d/%H/%M"), true).unwrap())
+        .contains(&path(start, "%Y/%m/%d/%H/%M/%S.arrow")));
     assert_eq!(
-        column_i64(&read_parquet(&fs, &path(start + 2_500)), "offset"),
-        [3, 4]
+        column_i64(
+            &read_parquet(&fs, &path(start + 2_000, "%Y/%m/%d/%H/%M/%S.parquet")),
+            "offset"
+        ),
+        [2]
     );
     assert_eq!(
-        column_i64(&read_parquet(&fs, &path(start)), "offset"),
+        column_i64(&read_parquet(&fs, &path(start, "%Y.parquet")), "offset"),
         [0, 1, 2, 3, 4]
     );
-    assert!(read_parquet(&fs, &path(start + 60_000)).is_empty());
+    assert!(read_parquet(&fs, &path(start + 60_000, "%Y/%m/%d/%H/%M.parquet")).is_empty());
 }
 
 fn read_parquet(fs: &KafkaFs<RdKafkaBackend>, path: &str) -> Vec<RecordBatch> {
@@ -708,18 +705,19 @@ fn records_round_trip_on_a_compacted_topic() {
     let fs = admin_filesystem(
         &bootstrap,
         KafkaFsOptions {
+            view: KafkaView::Records,
             partitions: 3,
             ..KafkaFsOptions::default()
         },
     );
     let name = unique_topic_name();
-    fs.makedirs(&format!("kafka://{name}/records"), false)
+    fs.makedirs(&format!("kafka+records://{name}"), false)
         .unwrap();
     assert_eq!(
         fs.backend().topic_config(&name).unwrap()["cleanup.policy"],
         "compact"
     );
-    let root = format!("{name}/records");
+    let root = name.clone();
     let binary = (0..=255).collect::<Vec<u8>>();
 
     fs.pipe_file(&format!("{root}/ns/binary"), &binary).unwrap();
@@ -732,7 +730,7 @@ fn records_round_trip_on_a_compacted_topic() {
     fs.rm_file(&format!("{root}/many/key-01")).unwrap();
 
     // A second filesystem replays the topic from the start.
-    let reader = filesystem(&bootstrap);
+    let reader = view_filesystem(&bootstrap, KafkaView::Records);
     assert_eq!(
         reader
             .cat_file(&format!("{root}/ns/binary"), None, None)
@@ -771,10 +769,10 @@ fn records_round_trip_on_a_compacted_topic() {
 fn records_refuse_topics_with_time_retention() {
     let Some(bootstrap) = bootstrap() else { return };
     let topic = Topic::create(&bootstrap, 1, 0);
-    let fs = filesystem(&bootstrap);
+    let fs = view_filesystem(&bootstrap, KafkaView::Records);
 
     assert!(matches!(
-        fs.pipe_file(&format!("{}/records/key", topic.name), b"x"),
+        fs.pipe_file(&format!("{}/key", topic.name), b"x"),
         Err(FsError::NotSupported(_))
     ));
     assert_eq!(fs.backend().watermarks(&topic.name, 0).unwrap().high, 0);

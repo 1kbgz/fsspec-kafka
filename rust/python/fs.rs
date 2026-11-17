@@ -7,7 +7,8 @@ use arrow::ipc::reader::StreamReader;
 use arrow::ipc::writer::StreamWriter;
 use fsspec_data::{AvroFraming, DataFormat};
 use fsspec_kafka::{
-    KafkaFs, KafkaFsOptions, MessageColumns, MessageTail, RdKafkaBackend, StreamStart, ValueFormat,
+    KafkaFs, KafkaFsOptions, KafkaView, MessageColumns, MessageTail, RdKafkaBackend, StreamStart,
+    TimeLevel, ValueFormat,
 };
 use fsspec_rs::{FileInfo, FileSystem, FileType, FsError, FsFile, OpenMode};
 use pyo3::exceptions::{
@@ -220,6 +221,8 @@ impl RustKafkaFs {
     #[new]
     #[pyo3(signature = (
         config,
+        view="offset",
+        time_bucket="millisecond",
         timeout=10.0,
         window_size=10_000,
         list_format="arrow",
@@ -243,6 +246,8 @@ impl RustKafkaFs {
     fn new(
         py: Python<'_>,
         config: HashMap<String, String>,
+        view: &str,
+        time_bucket: &str,
         timeout: f64,
         window_size: i64,
         list_format: &str,
@@ -299,6 +304,8 @@ impl RustKafkaFs {
             }
         };
         let options = KafkaFsOptions {
+            view: KafkaView::parse(view).map_err(fs_error)?,
+            time_bucket: TimeLevel::parse(time_bucket).map_err(fs_error)?,
             window_size,
             list_format: DataFormat::parse(list_format)
                 .map_err(|e| PyValueError::new_err(e.to_string()))?,
@@ -334,6 +341,23 @@ impl RustKafkaFs {
     fn info<'py>(&self, py: Python<'py>, path: &str) -> PyResult<Bound<'py, PyDict>> {
         let info = py.detach(|| self.inner.info(path)).map_err(fs_error)?;
         info_dict(py, info)
+    }
+
+    /// The first offset at or after `timestamp_ms` in each partition of a topic or partition.
+    fn offsets_for_time(
+        &self,
+        py: Python<'_>,
+        path: &str,
+        timestamp_ms: i64,
+    ) -> PyResult<BTreeMap<i32, i64>> {
+        py.detach(|| self.inner.offsets_for_time(path, timestamp_ms))
+            .map_err(fs_error)
+    }
+
+    /// Metadata of a topic or partition as JSON.
+    fn metadata(&self, py: Python<'_>, path: &str) -> PyResult<String> {
+        let value = py.detach(|| self.inner.metadata(path)).map_err(fs_error)?;
+        Ok(value.to_string())
     }
 
     #[pyo3(signature = (path, mode="rb"))]

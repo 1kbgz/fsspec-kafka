@@ -33,7 +33,7 @@ def lib():
 
 def test_kafka_is_registered_in_the_shared_registry():
     assert fsspec_kafka.linked_to_libfsspec() == fsspec_rs.fsspec_rs.linked_to_libfsspec()
-    assert "kafka" in protocols()
+    assert {"kafka", "kafka+offset", "kafka+time", "kafka+records", "kafka+history"} <= set(protocols())
 
 
 def test_libfsspec_opens_kafka_urls(lib):

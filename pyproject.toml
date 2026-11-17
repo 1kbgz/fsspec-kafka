@@ -62,6 +62,10 @@ develop = [
 
 [project.entry-points."fsspec.specs"]
 kafka = "fsspec_kafka.filesystem:KafkaFileSystem"
+"kafka+offset" = "fsspec_kafka.filesystem:KafkaFileSystem"
+"kafka+time" = "fsspec_kafka.filesystem:KafkaTimeFileSystem"
+"kafka+records" = "fsspec_kafka.filesystem:KafkaRecordsFileSystem"
+"kafka+history" = "fsspec_kafka.filesystem:KafkaHistoryFileSystem"
 
 [project.scripts]
 

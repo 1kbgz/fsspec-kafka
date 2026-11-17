@@ -5,29 +5,33 @@ use std::sync::{Arc, Mutex};
 
 use fsspec_data::DataFormat;
 use fsspec_rs::{FileInfo, FileSystem, FsError, FsFile, FsResult, OpenMode, OpenOptions};
-use serde_json::json;
+use serde_json::{json, Value};
 
 use crate::backend::{
-    KafkaBackend, MessageOffset, NewMessage, PartitionRange, TopicInfo, Watermarks,
+    KafkaBackend, Message, MessageOffset, MessageStream, NewMessage, PartitionInfo, PartitionRange,
+    TopicInfo, Watermarks,
 };
-use crate::path::{KafkaPath, MetaFile, Window};
+use crate::path::{Bucket, KafkaPath, KafkaView, TimeLevel, Window};
 use crate::read::{message_schema, EncodedFile, MessageBatches, ValueFormat};
-use crate::records::{fetch, record_file, RecordIndex, RECORDS_TOPIC_CONFIG};
+use crate::records::{fetch, RecordIndex, RecordLocation, RECORDS_TOPIC_CONFIG};
 use crate::stream::{MessageTail, StreamStart};
 use crate::write::{file_messages, MessageColumns, MessageWriter};
 
-const PROTOCOLS: &[&str] = &["kafka"];
-
 #[derive(Clone, Debug)]
 pub struct KafkaFsOptions {
+    /// How topics are arranged, which also sets the protocol.
+    pub view: KafkaView,
+    /// The deepest level of `kafka+time` buckets. Buckets at this level are files.
+    pub time_bucket: TimeLevel,
     /// Offsets per window file. Windows start at multiples of this size.
     pub window_size: i64,
-    /// Extension used when listing window files. Any supported extension can be opened.
+    /// Extension used when listing message files, and the encoding of `kafka+history` keys.
+    /// Any supported extension can be opened.
     pub list_format: DataFormat,
     /// Messages per Arrow record batch when reading.
     pub batch_size: usize,
-    /// Allows `mkdir` to create topics and `rmdir` to delete them. `mkdir("topic/records")`
-    /// creates a compacted topic for the records view.
+    /// Allows `mkdir` to create topics and `rmdir` to delete them. In `kafka+records`,
+    /// `mkdir` creates a compacted topic.
     pub allow_admin: bool,
     /// Partition count for topics created by `mkdir`. `-1` uses the broker default.
     pub partitions: i32,
@@ -44,6 +48,8 @@ pub struct KafkaFsOptions {
 impl Default for KafkaFsOptions {
     fn default() -> Self {
         Self {
+            view: KafkaView::Offset,
+            time_bucket: TimeLevel::Millisecond,
             window_size: 10_000,
             list_format: DataFormat::Arrow,
             batch_size: 1024,
@@ -57,11 +63,12 @@ impl Default for KafkaFsOptions {
     }
 }
 
-/// Kafka topics as directories, partitions as directories of fixed offset windows.
+/// Kafka topics as directories, arranged by the view in [`KafkaFsOptions::view`]: partitions
+/// of fixed offset windows, time buckets, or keys.
 pub struct KafkaFs<B> {
     backend: Arc<B>,
     options: KafkaFsOptions,
-    /// Record indexes by topic, built on first access to `topic/records`.
+    /// Key indexes by topic, built on first access to a topic's keys.
     records: Mutex<HashMap<String, RecordIndex>>,
 }
 
@@ -96,9 +103,9 @@ impl<B: KafkaBackend> KafkaFs<B> {
         self.backend.as_ref()
     }
 
-    /// Follows a topic or one partition from `start`, including messages produced later.
-    /// Start offsets are clamped to each partition's watermarks. Partitions added to the
-    /// topic afterwards are not followed.
+    /// Follows a topic, or in `kafka+offset` one partition, from `start`, including messages
+    /// produced later. Start offsets are clamped to each partition's watermarks. Partitions
+    /// added to the topic afterwards are not followed.
     pub fn stream(&self, path: &str, start: StreamStart) -> FsResult<MessageTail> {
         let (topic, partitions) = match self.resolve(path)? {
             KafkaPath::Topic(topic) => {
@@ -146,10 +153,93 @@ impl<B: KafkaBackend> KafkaFs<B> {
         ))
     }
 
+    /// The first offset of each partition of a topic, or of one `kafka+offset` partition,
+    /// whose timestamp is at or after `timestamp_ms`. Partitions without such a message map to
+    /// their high watermark. Offsets come from the broker's time index.
+    pub fn offsets_for_time(&self, path: &str, timestamp_ms: i64) -> FsResult<BTreeMap<i32, i64>> {
+        let (topic, partitions) = match self.resolve(path)? {
+            KafkaPath::Topic(topic) => {
+                let ids = self
+                    .backend
+                    .topic(&topic)?
+                    .partitions
+                    .iter()
+                    .map(|p| p.id)
+                    .collect();
+                (topic, ids)
+            }
+            KafkaPath::Partition(topic, partition) => {
+                self.partition(&topic, partition)?;
+                (topic, vec![partition])
+            }
+            path => {
+                return Err(FsError::InvalidArgument(format!(
+                    "only topics and partitions have offsets: {}",
+                    path.to_path()
+                )))
+            }
+        };
+        partitions
+            .into_iter()
+            .map(|partition| {
+                let marks = self.backend.watermarks(&topic, partition)?;
+                let offset = self
+                    .backend
+                    .offset_for_time(&topic, partition, timestamp_ms)?
+                    .map_or(marks.high, |offset| offset.clamp(marks.low, marks.high));
+                Ok((partition, offset))
+            })
+            .collect()
+    }
+
+    /// Metadata of a topic or `kafka+offset` partition: leaders, replicas, in-sync replicas,
+    /// and watermarks, plus the configuration of a topic.
+    pub fn metadata(&self, path: &str) -> FsResult<Value> {
+        match self.resolve(path)? {
+            KafkaPath::Topic(topic) => {
+                let info = self.backend.topic(&topic)?;
+                let partitions = info
+                    .partitions
+                    .iter()
+                    .map(|p| self.partition_metadata(&topic, p))
+                    .collect::<FsResult<Vec<_>>>()?;
+                Ok(json!({
+                    "partitions": partitions,
+                    "config": self.backend.topic_config(&topic)?,
+                }))
+            }
+            KafkaPath::Partition(topic, partition) => {
+                let info = self.partition(&topic, partition)?;
+                let partition = info
+                    .partitions
+                    .iter()
+                    .find(|p| p.id == partition)
+                    .expect("partition was found");
+                self.partition_metadata(&topic, partition)
+            }
+            path => Err(FsError::NotSupported(format!(
+                "only topics and partitions have metadata: {}",
+                path.to_path()
+            ))),
+        }
+    }
+
+    fn partition_metadata(&self, topic: &str, partition: &PartitionInfo) -> FsResult<Value> {
+        let marks = self.backend.watermarks(topic, partition.id)?;
+        Ok(json!({
+            "partition": partition.id,
+            "leader": partition.leader,
+            "replicas": partition.replicas,
+            "isr": partition.isr,
+            "low": marks.low,
+            "high": marks.high,
+        }))
+    }
+
     /// Parses `path`, treating `name.format` as a topic directory when a topic has that
     /// exact name.
     fn resolve(&self, path: &str) -> FsResult<KafkaPath> {
-        let parsed = KafkaPath::parse(path)?;
+        let parsed = KafkaPath::parse(path, self.options.view)?;
         if let KafkaPath::TopicSnapshot { .. } = parsed {
             let name = self.strip_protocol(path);
             if self.backend.topic(&name).is_ok() {
@@ -173,7 +263,7 @@ impl<B: KafkaBackend> KafkaFs<B> {
     /// like a file, such as `events.csv`, parses as a snapshot, so it is mapped back here.
     fn admin_topic(&self, path: &str) -> FsResult<String> {
         self.require_admin(path)?;
-        match KafkaPath::parse(path)? {
+        match KafkaPath::parse(path, self.options.view)? {
             KafkaPath::Topic(topic) => Ok(topic),
             KafkaPath::TopicSnapshot { .. } => Ok(self.strip_protocol(path)),
             _ => Err(FsError::NotSupported(format!(
@@ -182,9 +272,9 @@ impl<B: KafkaBackend> KafkaFs<B> {
         }
     }
 
-    /// Runs `f` on the topic's record index, building it on first use. With `catch_up`, an
+    /// Runs `f` on the topic's key index, building it on first use. With `catch_up`, an
     /// existing index first replays messages produced since it was last used.
-    fn with_records<T>(
+    fn with_keys<T>(
         &self,
         topic: &str,
         catch_up: bool,
@@ -202,7 +292,10 @@ impl<B: KafkaBackend> KafkaFs<B> {
                 }
                 index
             }
-            Entry::Vacant(entry) => entry.insert(RecordIndex::open(self.backend.as_ref(), topic)?),
+            Entry::Vacant(entry) => entry.insert(match self.options.view {
+                KafkaView::History => RecordIndex::open_history(self.backend.as_ref(), topic)?,
+                _ => RecordIndex::open(self.backend.as_ref(), topic)?,
+            }),
         };
         f(index)
     }
@@ -212,22 +305,77 @@ impl<B: KafkaBackend> KafkaFs<B> {
     /// if the key still points at the missing offset, the key was deleted.
     fn read_record(&self, topic: &str, key: &str) -> FsResult<(FileInfo, Vec<u8>)> {
         let backend = self.backend.as_ref();
-        self.with_records(topic, true, |index| loop {
-            let path = KafkaPath::Records {
-                topic: topic.to_string(),
-                key: key.to_string(),
-            };
+        self.with_keys(topic, true, |index| loop {
             let location = index
                 .get(key)
-                .ok_or_else(|| FsError::NotFound(path.to_path()))?;
+                .ok_or_else(|| FsError::NotFound(self.key_path(topic, key)))?;
             if let Some(value) = fetch(backend, topic, location)? {
-                return Ok((record_file(topic, key, location), value));
+                return Ok((self.key_file(topic, key, location), value));
             }
             index.catch_up(backend, topic)?;
             if index.get(key) == Some(location) {
                 index.remove(key);
-                return Err(FsError::NotFound(path.to_path()));
+                return Err(FsError::NotFound(self.key_path(topic, key)));
             }
+        })
+    }
+
+    fn key_path(&self, topic: &str, key: &str) -> String {
+        format!("{topic}/{key}")
+    }
+
+    fn key_file(&self, topic: &str, key: &str, location: RecordLocation) -> FileInfo {
+        let path = self.key_path(topic, key);
+        let mut info = match self.options.view {
+            KafkaView::History => {
+                let mut info = data_file(path, self.options.list_format);
+                info.extra.insert("kind".into(), "history".into());
+                info
+            }
+            _ => {
+                let mut info = FileInfo::file(path, location.size);
+                info.extra.insert("kind".into(), "record".into());
+                info
+            }
+        };
+        info.extra
+            .insert("partition".into(), location.partition.to_string());
+        info.extra
+            .insert("offset".into(), location.offset.to_string());
+        info
+    }
+
+    fn key_dir(&self, topic: &str, key: &str) -> FileInfo {
+        let mut info = FileInfo::directory(self.key_path(topic, key));
+        info.extra.insert("kind".into(), "keys".into());
+        info
+    }
+
+    /// Files and directories of keys under `key`; `key` itself when it names a key.
+    fn ls_keys(&self, topic: &str, key: &str) -> FsResult<Vec<FileInfo>> {
+        self.with_keys(topic, true, |index| {
+            if let Some(location) = index.get(key).filter(|_| !key.is_empty()) {
+                Ok(vec![self.key_file(topic, key, location)])
+            } else if key.is_empty() || index.is_dir(key) {
+                Ok(index
+                    .children(key)
+                    .into_iter()
+                    .map(|(child, location)| match location {
+                        Some(location) => self.key_file(topic, &child, location),
+                        None => self.key_dir(topic, &child),
+                    })
+                    .collect())
+            } else {
+                Err(FsError::NotFound(self.key_path(topic, key)))
+            }
+        })
+    }
+
+    fn info_key(&self, topic: &str, key: &str) -> FsResult<FileInfo> {
+        self.with_keys(topic, true, |index| match index.get(key) {
+            Some(location) => Ok(self.key_file(topic, key, location)),
+            None if index.is_dir(key) => Ok(self.key_dir(topic, key)),
+            None => Err(FsError::NotFound(self.key_path(topic, key))),
         })
     }
 
@@ -239,37 +387,165 @@ impl<B: KafkaBackend> KafkaFs<B> {
         Ok(info)
     }
 
-    fn meta_content(&self, topic: &str, file: MetaFile) -> FsResult<Vec<u8>> {
-        let info = self.backend.topic(topic)?;
-        let value = match file {
-            MetaFile::Config => json!(self.backend.topic_config(topic)?),
-            MetaFile::Partitions => json!(info
-                .partitions
-                .iter()
-                .map(|p| json!({
-                    "partition": p.id,
-                    "leader": p.leader,
-                    "replicas": p.replicas,
-                    "isr": p.isr,
-                }))
-                .collect::<Vec<_>>()),
-            MetaFile::Watermarks => json!(info
-                .partitions
-                .iter()
-                .map(|p| {
-                    let marks = self.backend.watermarks(topic, p.id)?;
-                    Ok(json!({"partition": p.id, "low": marks.low, "high": marks.high}))
+    /// Every retained offset of every partition.
+    fn topic_ranges(&self, topic: &str) -> FsResult<Vec<PartitionRange>> {
+        self.backend
+            .topic(topic)?
+            .partitions
+            .iter()
+            .map(|p| {
+                let marks = self.backend.watermarks(topic, p.id)?;
+                Ok(PartitionRange {
+                    partition: p.id,
+                    start: marks.low,
+                    end: marks.high,
                 })
-                .collect::<FsResult<Vec<_>>>()?),
+            })
+            .collect()
+    }
+
+    /// Offsets that may hold messages with timestamps in `start_ms..end_ms`. Offsets come
+    /// from the broker's time index, so they assume timestamps increase with offsets.
+    fn time_ranges(
+        &self,
+        topic: &str,
+        start_ms: i64,
+        end_ms: i64,
+    ) -> FsResult<Vec<PartitionRange>> {
+        let mut ranges = Vec::new();
+        for partition in self.backend.topic(topic)?.partitions {
+            let marks = self.backend.watermarks(topic, partition.id)?;
+            let Some(start) = self
+                .backend
+                .offset_for_time(topic, partition.id, start_ms)?
+            else {
+                continue;
+            };
+            let end = self
+                .backend
+                .offset_for_time(topic, partition.id, end_ms)?
+                .unwrap_or(marks.high);
+            if start < end {
+                ranges.push(PartitionRange {
+                    partition: partition.id,
+                    start: start.max(marks.low),
+                    end: end.min(marks.high),
+                });
+            }
+        }
+        Ok(ranges)
+    }
+
+    /// The timestamps of the first and last retained messages of the topic, read from the
+    /// start and end of each partition.
+    fn time_bounds(&self, topic: &str) -> FsResult<Option<(i64, i64)>> {
+        let mut bounds: Option<(i64, i64)> = None;
+        for range in self.topic_ranges(topic)? {
+            if range.start >= range.end {
+                continue;
+            }
+            let first = self
+                .backend
+                .read(topic, vec![range])?
+                .find_map(|message| message.map(|m| m.timestamp_ms).transpose())
+                .transpose()?;
+            // The last offsets may be transaction markers or compacted away.
+            let mut last = None;
+            let mut span = 1;
+            while last.is_none() {
+                let start = (range.end - span).max(range.start);
+                for message in self
+                    .backend
+                    .read(topic, vec![PartitionRange { start, ..range }])?
+                {
+                    if let Some(timestamp) = message?.timestamp_ms {
+                        last = Some(timestamp);
+                    }
+                }
+                if start == range.start {
+                    break;
+                }
+                span *= 16;
+            }
+            if let (Some(first), Some(last)) = (first, last) {
+                bounds = Some(match bounds {
+                    Some((low, high)) => (low.min(first), high.max(last)),
+                    None => (first, last),
+                });
+            }
+        }
+        Ok(bounds)
+    }
+
+    /// Buckets under `parent` (the topic for years, or the weeks directory) that overlap the
+    /// topic's messages.
+    fn ls_buckets(
+        &self,
+        topic: &str,
+        parent: Option<&Bucket>,
+        weeks: bool,
+    ) -> FsResult<Vec<FileInfo>> {
+        let Some((first, last)) = self.time_bounds(topic)? else {
+            return Ok(Vec::new());
         };
-        serde_json::to_vec_pretty(&value).map_err(|e| FsError::Other(e.to_string()))
+        let (low, high) = match parent {
+            Some(parent) => (first.max(parent.start_ms()), last.min(parent.end_ms() - 1)),
+            None => (first, last),
+        };
+        let at = |timestamp| match (parent, weeks) {
+            (Some(parent), _) => parent.child_at(timestamp),
+            (None, true) => Bucket::week_at(timestamp),
+            (None, false) => Bucket::year_at(timestamp),
+        };
+        let mut entries = Vec::new();
+        let mut timestamp = low;
+        while timestamp <= high {
+            let Some(bucket) = at(timestamp) else { break };
+            timestamp = bucket.end_ms();
+            entries.push(self.bucket_info(topic, bucket, None, true));
+        }
+        Ok(entries)
+    }
+
+    /// A bucket as listed: a directory above the configured `time_bucket`, otherwise a file
+    /// in `list_format`. With `listed` false, `format` says which one was asked for.
+    fn bucket_info(
+        &self,
+        topic: &str,
+        bucket: Bucket,
+        format: Option<DataFormat>,
+        listed: bool,
+    ) -> FileInfo {
+        let leaf = bucket
+            .level()
+            .is_none_or(|level| level >= self.options.time_bucket);
+        let format = if listed && leaf {
+            Some(self.options.list_format)
+        } else {
+            format
+        };
+        let (start, end) = (bucket.start_ms(), bucket.end_ms());
+        let path = KafkaPath::Bucket {
+            topic: topic.to_string(),
+            bucket,
+            format,
+        }
+        .to_path();
+        let mut info = match format {
+            Some(format) => data_file(path, format),
+            None => FileInfo::directory(path),
+        };
+        info.extra.insert("kind".into(), "bucket".into());
+        info.extra.insert("start".into(), rfc3339(start));
+        info.extra.insert("end".into(), rfc3339(end));
+        info
     }
 
     /// Opens a message file. Offsets are bounded by the watermarks read here, so messages
     /// produced after opening are not included.
     fn open_data(&self, path: KafkaPath) -> FsResult<Box<dyn FsFile>> {
         let info = self.info_kafka(path.clone())?;
-        let (topic, format, ranges) = match path {
+        let (topic, format, messages): (String, DataFormat, MessageStream) = match path {
             KafkaPath::Window {
                 topic,
                 partition,
@@ -285,7 +561,8 @@ impl<B: KafkaBackend> KafkaFs<B> {
                     start: window.start.max(marks.low),
                     end,
                 };
-                (topic, format, vec![range])
+                let messages = self.backend.read(&topic, vec![range])?;
+                (topic, format, messages)
             }
             KafkaPath::PartitionRead {
                 topic,
@@ -301,58 +578,54 @@ impl<B: KafkaBackend> KafkaFs<B> {
                         .saturating_add(i64::try_from(limit).unwrap_or(i64::MAX))
                         .min(marks.high)
                 });
-                (
-                    topic,
-                    format,
-                    vec![PartitionRange {
-                        partition,
-                        start,
-                        end,
-                    }],
-                )
+                let range = PartitionRange {
+                    partition,
+                    start,
+                    end,
+                };
+                let messages = self.backend.read(&topic, vec![range])?;
+                (topic, format, messages)
             }
-            KafkaPath::TimeRead {
-                topic,
-                partition,
-                timestamp_ms,
-                format,
-            } => {
-                let marks = self.backend.watermarks(&topic, partition)?;
-                // Timestamps need not increase with offsets, so later messages may be older.
-                let start = self
-                    .backend
-                    .offset_for_time(&topic, partition, timestamp_ms)?
-                    .map_or(marks.high, |start| start.clamp(marks.low, marks.high));
-                (
-                    topic,
-                    format,
-                    vec![PartitionRange {
-                        partition,
-                        start,
-                        end: marks.high,
-                    }],
-                )
+            KafkaPath::TopicSnapshot { topic, format }
+                if self.options.view == KafkaView::Records =>
+            {
+                let messages = self.latest_records(&topic)?;
+                (topic, format, Box::new(messages.into_iter().map(Ok)))
             }
             KafkaPath::TopicSnapshot { topic, format } => {
-                let ranges = self
+                let messages = self.backend.read(&topic, self.topic_ranges(&topic)?)?;
+                (topic, format, messages)
+            }
+            KafkaPath::Bucket {
+                topic,
+                bucket,
+                format: Some(format),
+            } => {
+                let (start, end) = (bucket.start_ms(), bucket.end_ms());
+                let messages = self
                     .backend
-                    .topic(&topic)?
-                    .partitions
-                    .iter()
-                    .map(|p| {
-                        let marks = self.backend.watermarks(&topic, p.id)?;
-                        Ok(PartitionRange {
-                            partition: p.id,
-                            start: marks.low,
-                            end: marks.high,
-                        })
-                    })
-                    .collect::<FsResult<Vec<_>>>()?;
-                (topic, format, ranges)
+                    .read(&topic, self.time_ranges(&topic, start, end)?)?
+                    .filter(move |message| match message {
+                        Ok(message) => message
+                            .timestamp_ms
+                            .is_some_and(|timestamp| (start..end).contains(&timestamp)),
+                        Err(_) => true,
+                    });
+                (topic, format, Box::new(messages))
+            }
+            KafkaPath::History { topic, key } => {
+                let key = key.into_bytes();
+                let messages = self
+                    .backend
+                    .read(&topic, self.topic_ranges(&topic)?)?
+                    .filter(move |message| match message {
+                        Ok(message) => message.key.as_deref() == Some(key.as_slice()),
+                        Err(_) => true,
+                    });
+                (topic, self.options.list_format, Box::new(messages))
             }
             path => return Err(FsError::IsADirectory(path.to_path())),
         };
-        let messages = self.backend.read(&topic, ranges)?;
         let batches = MessageBatches::new(
             &topic,
             messages,
@@ -363,7 +636,29 @@ impl<B: KafkaBackend> KafkaFs<B> {
         Ok(Box::new(EncodedFile::new(batches, format, info)?))
     }
 
-    /// Appends a file to `topic.format` or `topic/partition.format` as one message per row.
+    /// The latest message of each key with a value, in offset order within each partition.
+    fn latest_records(&self, topic: &str) -> FsResult<Vec<Message>> {
+        // Checks that the topic is compacted.
+        self.with_keys(topic, false, |_| Ok(()))?;
+        let mut latest = HashMap::new();
+        for message in self.backend.read(topic, self.topic_ranges(topic)?)? {
+            let message = message?;
+            let Some(key) = message.key.clone() else {
+                continue;
+            };
+            if message.value.is_some() {
+                latest.insert(key, message);
+            } else {
+                latest.remove(&key);
+            }
+        }
+        let mut messages = latest.into_values().collect::<Vec<_>>();
+        messages.sort_by_key(|message| (message.partition, message.offset));
+        Ok(messages)
+    }
+
+    /// Appends a file to `topic.format`, or in `kafka+offset` to `topic/partition.format`, as
+    /// one message per row.
     fn append(&self, path: KafkaPath) -> FsResult<Box<dyn FsFile>> {
         let name = path.to_path();
         let (topic, partition, format) = match path {
@@ -400,18 +695,23 @@ impl<B: KafkaBackend> KafkaFs<B> {
     fn ls_kafka(&self, path: KafkaPath) -> FsResult<Vec<FileInfo>> {
         match path {
             KafkaPath::Root => Ok(self.backend.list_topics()?.iter().map(topic_dir).collect()),
-            KafkaPath::Topic(topic) => {
-                let info = self.backend.topic(&topic)?;
-                let mut entries = vec![FileInfo::directory(
-                    KafkaPath::MetaDir(topic.clone()).to_path(),
-                )];
-                entries.extend(info.partitions.iter().map(|p| partition_dir(&topic, p.id)));
-                Ok(entries)
-            }
-            KafkaPath::MetaDir(topic) => MetaFile::ALL
-                .into_iter()
-                .map(|file| self.info_kafka(KafkaPath::Meta(topic.clone(), file)))
-                .collect(),
+            KafkaPath::Topic(topic) => match self.options.view {
+                KafkaView::Offset => {
+                    let info = self.backend.topic(&topic)?;
+                    Ok(info
+                        .partitions
+                        .iter()
+                        .map(|p| partition_dir(&topic, p.id))
+                        .collect())
+                }
+                KafkaView::Time => {
+                    self.backend.topic(&topic)?;
+                    let mut entries = vec![weeks_dir(&topic)];
+                    entries.extend(self.ls_buckets(&topic, None, false)?);
+                    Ok(entries)
+                }
+                KafkaView::Records | KafkaView::History => self.ls_keys(&topic, ""),
+            },
             KafkaPath::Partition(topic, partition) => {
                 self.partition(&topic, partition)?;
                 let marks = self.backend.watermarks(&topic, partition)?;
@@ -422,21 +722,24 @@ impl<B: KafkaBackend> KafkaFs<B> {
                     })
                     .collect())
             }
-            KafkaPath::Records { topic, key } => self.with_records(&topic, true, |index| {
-                if let Some(location) = index.get(&key).filter(|_| !key.is_empty()) {
-                    Ok(vec![record_file(&topic, &key, location)])
-                } else if key.is_empty() || index.is_dir(&key) {
-                    Ok(index.children(&topic, &key))
-                } else {
-                    Err(FsError::NotFound(
-                        KafkaPath::Records {
-                            topic: topic.clone(),
-                            key: key.clone(),
-                        }
-                        .to_path(),
-                    ))
+            KafkaPath::Weeks(topic) => {
+                self.backend.topic(&topic)?;
+                self.ls_buckets(&topic, None, true)
+            }
+            KafkaPath::Bucket {
+                ref topic,
+                ref bucket,
+                format: None,
+            } => {
+                let info = self.info_kafka(path.clone())?;
+                if !info.is_dir() {
+                    return Ok(vec![info]);
                 }
-            }),
+                self.ls_buckets(topic, Some(bucket), false)
+            }
+            KafkaPath::Records { topic, key } | KafkaPath::History { topic, key } => {
+                self.ls_keys(&topic, &key)
+            }
             path => Err(FsError::NotADirectory(path.to_path())),
         }
     }
@@ -445,14 +748,6 @@ impl<B: KafkaBackend> KafkaFs<B> {
         match &path {
             KafkaPath::Root => Ok(FileInfo::directory("")),
             KafkaPath::Topic(topic) => Ok(topic_dir(&self.backend.topic(topic)?)),
-            KafkaPath::MetaDir(topic) => {
-                self.backend.topic(topic)?;
-                Ok(FileInfo::directory(path.to_path()))
-            }
-            KafkaPath::Meta(topic, file) => {
-                let size = self.meta_content(topic, *file)?.len() as u64;
-                Ok(FileInfo::file(path.to_path(), size))
-            }
             KafkaPath::Partition(topic, partition) => {
                 self.partition(topic, *partition)?;
                 let marks = self.backend.watermarks(topic, *partition)?;
@@ -479,12 +774,6 @@ impl<B: KafkaBackend> KafkaFs<B> {
                 partition,
                 format,
                 ..
-            }
-            | KafkaPath::TimeRead {
-                topic,
-                partition,
-                format,
-                ..
             } => {
                 self.partition(topic, *partition)?;
                 Ok(data_file(path.to_path(), *format))
@@ -493,23 +782,38 @@ impl<B: KafkaBackend> KafkaFs<B> {
                 self.backend.topic(topic)?;
                 Ok(data_file(path.to_path(), *format))
             }
-            KafkaPath::Records { topic, key } => self.with_records(topic, true, |index| {
-                if key.is_empty() || index.get(key).is_none() && index.is_dir(key) {
-                    Ok(FileInfo::directory(path.to_path()))
-                } else {
-                    let location = index
-                        .get(key)
-                        .ok_or_else(|| FsError::NotFound(path.to_path()))?;
-                    Ok(record_file(topic, key, location))
+            KafkaPath::Weeks(topic) => {
+                self.backend.topic(topic)?;
+                Ok(weeks_dir(topic))
+            }
+            KafkaPath::Bucket {
+                topic,
+                bucket,
+                format,
+            } => {
+                self.backend.topic(topic)?;
+                let too_deep = bucket
+                    .level()
+                    .is_some_and(|level| level > self.options.time_bucket);
+                let leaf = bucket
+                    .level()
+                    .is_none_or(|level| level == self.options.time_bucket);
+                // Leaf buckets are files, so they have no directory form.
+                if too_deep || leaf && format.is_none() {
+                    return Err(FsError::NotFound(path.to_path()));
                 }
-            }),
+                Ok(self.bucket_info(topic, bucket.clone(), *format, false))
+            }
+            KafkaPath::Records { topic, key } | KafkaPath::History { topic, key } => {
+                self.info_key(topic, key)
+            }
         }
     }
 }
 
 impl<B: KafkaBackend> FileSystem for KafkaFs<B> {
     fn protocol(&self) -> &[&str] {
-        PROTOCOLS
+        self.options.view.protocols()
     }
 
     fn ls(&self, path: &str, _detail: bool) -> FsResult<Vec<FileInfo>> {
@@ -528,9 +832,6 @@ impl<B: KafkaBackend> FileSystem for KafkaFs<B> {
     ) -> FsResult<Box<dyn FsFile>> {
         let parsed = self.resolve(path)?;
         if let KafkaPath::Records { topic, key } = &parsed {
-            if key.is_empty() {
-                return Err(FsError::IsADirectory(path.to_string()));
-            }
             return match mode {
                 OpenMode::Read => {
                     let (info, value) = self.read_record(topic, key)?;
@@ -541,7 +842,7 @@ impl<B: KafkaBackend> FileSystem for KafkaFs<B> {
                 }
                 OpenMode::Write => {
                     // Check the topic is compacted before accepting the value.
-                    self.with_records(topic, false, |_| Ok(()))?;
+                    self.with_keys(topic, false, |_| Ok(()))?;
                     let key = key.clone().into_bytes();
                     Ok(Box::new(MessageWriter::new(
                         self.backend.clone(),
@@ -571,19 +872,20 @@ impl<B: KafkaBackend> FileSystem for KafkaFs<B> {
             }
         }
         match parsed {
-            KafkaPath::Meta(topic, file) => {
-                let content = self.meta_content(&topic, file)?;
-                let info =
-                    FileInfo::file(KafkaPath::Meta(topic, file).to_path(), content.len() as u64);
-                Ok(Box::new(MemoryFile {
-                    cursor: Cursor::new(content),
-                    info,
-                }))
-            }
             KafkaPath::Root
             | KafkaPath::Topic(_)
-            | KafkaPath::MetaDir(_)
-            | KafkaPath::Partition(..) => Err(FsError::IsADirectory(path.to_string())),
+            | KafkaPath::Partition(..)
+            | KafkaPath::Weeks(_)
+            | KafkaPath::Bucket { format: None, .. } => {
+                self.info_kafka(parsed)?;
+                Err(FsError::IsADirectory(path.to_string()))
+            }
+            KafkaPath::History { ref topic, ref key } => {
+                if self.info_key(topic, key)?.is_dir() {
+                    return Err(FsError::IsADirectory(path.to_string()));
+                }
+                self.open_data(parsed)
+            }
             path => self.open_data(path),
         }
     }
@@ -611,8 +913,8 @@ impl<B: KafkaBackend> FileSystem for KafkaFs<B> {
     /// Deletes a record by producing a tombstone for its key.
     fn rm_file(&self, path: &str) -> FsResult<()> {
         match self.resolve(path)? {
-            KafkaPath::Records { topic, key } if !key.is_empty() => {
-                self.with_records(&topic, true, |index| {
+            KafkaPath::Records { topic, key } => {
+                self.with_keys(&topic, true, |index| {
                     index
                         .get(&key)
                         .map(|_| ())
@@ -639,39 +941,32 @@ impl<B: KafkaBackend> FileSystem for KafkaFs<B> {
         )))
     }
 
-    /// Creates a topic with the configured partitions, replication, and topic config.
-    /// Topics have no parent directories, so `create_parents` has no effect.
+    /// Creates a topic with the configured partitions, replication, and topic config. In
+    /// `kafka+records`, the topic is compacted. Topics have no parent directories, so
+    /// `create_parents` has no effect.
     fn mkdir(&self, path: &str, _create_parents: bool) -> FsResult<()> {
-        match KafkaPath::parse(path)? {
-            KafkaPath::Records { topic, key } if key.is_empty() => {
-                self.require_admin(path)?;
-                let mut config = self.options.topic_config.clone();
-                config.extend(
-                    RECORDS_TOPIC_CONFIG.map(|(name, value)| (name.to_string(), value.to_string())),
-                );
-                return self.backend.create_topic(
-                    &topic,
-                    self.options.partitions,
-                    self.options.replication,
-                    &config,
-                );
-            }
-            // Record directories exist while they hold keys, like S3 prefixes.
-            KafkaPath::Records { .. } => return Ok(()),
-            _ => {}
+        // Record directories exist while they hold keys, like S3 prefixes.
+        if let KafkaPath::Records { .. } = KafkaPath::parse(path, self.options.view)? {
+            return Ok(());
         }
         let topic = self.admin_topic(path)?;
+        let mut config = self.options.topic_config.clone();
+        if self.options.view == KafkaView::Records {
+            config.extend(
+                RECORDS_TOPIC_CONFIG.map(|(name, value)| (name.to_string(), value.to_string())),
+            );
+        }
         self.backend.create_topic(
             &topic,
             self.options.partitions,
             self.options.replication,
-            &self.options.topic_config,
+            &config,
         )
     }
 
     /// Deletes a topic and all of its messages.
     fn rmdir(&self, path: &str) -> FsResult<()> {
-        if let KafkaPath::Records { .. } = KafkaPath::parse(path)? {
+        if let KafkaPath::Records { .. } = KafkaPath::parse(path, self.options.view)? {
             return Ok(());
         }
         let topic = self.admin_topic(path)?;
@@ -698,10 +993,17 @@ pub fn windows(marks: Watermarks, size: i64) -> Vec<Window> {
     result
 }
 
+fn rfc3339(timestamp_ms: i64) -> String {
+    chrono::DateTime::from_timestamp_millis(timestamp_ms)
+        .map(|time| time.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
+        .unwrap_or_default()
+}
+
 fn topic_dir(topic: &TopicInfo) -> FileInfo {
     let mut info = FileInfo::directory(KafkaPath::Topic(topic.name.clone()).to_path());
     info.extra
         .insert("partitions".into(), topic.partitions.len().to_string());
+    info.extra.insert("kind".into(), "topic".into());
     info
 }
 
@@ -709,6 +1011,13 @@ fn partition_dir(topic: &str, partition: i32) -> FileInfo {
     let mut info =
         FileInfo::directory(KafkaPath::Partition(topic.to_string(), partition).to_path());
     info.extra.insert("partition".into(), partition.to_string());
+    info.extra.insert("kind".into(), "partition".into());
+    info
+}
+
+fn weeks_dir(topic: &str) -> FileInfo {
+    let mut info = FileInfo::directory(KafkaPath::Weeks(topic.to_string()).to_path());
+    info.extra.insert("kind".into(), "weeks".into());
     info
 }
 
@@ -740,6 +1049,7 @@ fn window_file(
     info.extra.insert("end".into(), last.to_string());
     info.extra
         .insert("closed".into(), window.end.is_some().to_string());
+    info.extra.insert("kind".into(), "window".into());
     info
 }
 
@@ -998,17 +1308,24 @@ mod tests {
         assert_eq!(names(fs.ls("", true).unwrap()), ["orders", "events.csv"]);
         assert_eq!(
             names(fs.ls("kafka://orders", true).unwrap()),
-            ["orders/_meta", "orders/0", "orders/1"]
+            ["orders/0", "orders/1"]
         );
-        assert_eq!(fs.ls("orders", true).unwrap()[2].extra["partition"], "1");
-        let info = fs.info("orders/1").unwrap();
+        assert_eq!(fs.ls("orders", true).unwrap()[1].extra["partition"], "1");
+        assert_eq!(fs.info("orders").unwrap().extra["kind"], "topic");
+        let info = fs.info("kafka+offset://orders/1").unwrap();
         assert_eq!(
             (
                 &info.extra["partition"],
                 &info.extra["low"],
-                &info.extra["high"]
+                &info.extra["high"],
+                &info.extra["kind"],
             ),
-            (&"1".to_string(), &"7".to_string(), &"7".to_string())
+            (
+                &"1".to_string(),
+                &"7".to_string(),
+                &"7".to_string(),
+                &"partition".to_string()
+            )
         );
         assert_eq!(
             names(fs.ls("orders/0", true).unwrap()),
@@ -1019,14 +1336,6 @@ mod tests {
             ]
         );
         assert!(fs.ls("orders/1", true).unwrap().is_empty());
-        assert_eq!(
-            names(fs.ls("orders/_meta", true).unwrap()),
-            [
-                "orders/_meta/config.json",
-                "orders/_meta/partitions.json",
-                "orders/_meta/watermarks.json"
-            ]
-        );
     }
 
     #[test]
@@ -1038,6 +1347,7 @@ mod tests {
         assert_eq!(info.extra["closed"], "false");
         assert_eq!(info.extra["size_known"], "false");
         assert_eq!(info.extra["format"], "parquet");
+        assert_eq!(info.extra["kind"], "window");
     }
 
     #[test]
@@ -1059,43 +1369,42 @@ mod tests {
     fn topic_named_like_a_file_resolves_to_directory() {
         let fs = fs();
         assert!(fs.info("events.csv").unwrap().is_dir());
-        assert_eq!(
-            names(fs.ls("events.csv", true).unwrap()),
-            ["events.csv/_meta", "events.csv/0"]
-        );
+        assert_eq!(names(fs.ls("events.csv", true).unwrap()), ["events.csv/0"]);
         assert!(fs.info("orders.csv").unwrap().is_file());
     }
 
     #[test]
-    fn meta_files_open_as_json() {
+    fn offsets_for_time_cover_each_partition() {
         let fs = fs();
-        let read = |path| {
-            let mut text = String::new();
-            fs.open(path, OpenMode::Read, None)
-                .unwrap()
-                .read_to_string(&mut text)
-                .unwrap();
-            serde_json::from_str::<serde_json::Value>(&text).unwrap()
-        };
         assert_eq!(
-            read("orders/_meta/config.json"),
-            json!({"retention.ms": "604800000"})
+            fs.offsets_for_time("orders", 1_022).unwrap(),
+            BTreeMap::from([(0, 22), (1, 7)])
         );
         assert_eq!(
-            read("orders/_meta/watermarks.json"),
-            json!([{"partition": 0, "low": 0, "high": 25}, {"partition": 1, "low": 7, "high": 7}])
+            fs.offsets_for_time("kafka://orders/0", 9_999).unwrap(),
+            BTreeMap::from([(0, 25)])
         );
-        assert_eq!(
-            read("orders/_meta/partitions.json")[0],
-            json!({"partition": 0, "leader": 1, "replicas": [1], "isr": [1]})
-        );
-        let size = fs.info("orders/_meta/config.json").unwrap().size;
-        assert_eq!(
-            size,
-            fs.cat_file("orders/_meta/config.json", None, None)
-                .unwrap()
-                .len() as u64
-        );
+        assert!(matches!(
+            fs.offsets_for_time("orders/0/0-9.arrow", 0),
+            Err(FsError::InvalidArgument(_))
+        ));
+    }
+
+    #[test]
+    fn topics_and_partitions_have_metadata() {
+        let fs = fs();
+        let partition =
+            json!({"partition": 0, "leader": 1, "replicas": [1], "isr": [1], "low": 0, "high": 25});
+        assert_eq!(fs.metadata("orders/0").unwrap(), partition);
+        let topic = fs.metadata("kafka://orders").unwrap();
+        assert_eq!(topic["config"], json!({"retention.ms": "604800000"}));
+        assert_eq!(topic["partitions"][0], partition);
+        assert_eq!(topic["partitions"][1]["low"], 7);
+        assert!(matches!(
+            fs.metadata("orders/0/0-9.arrow"),
+            Err(FsError::NotSupported(_))
+        ));
+        assert!(matches!(fs.metadata("orders/9"), Err(FsError::NotFound(_))));
     }
 
     #[test]
@@ -1218,28 +1527,92 @@ mod tests {
         assert!(read_arrow(&fs, "orders/1.arrow").is_empty());
     }
 
+    fn time_fs(time_bucket: TimeLevel) -> KafkaFs<MockBackend> {
+        KafkaFs::new(
+            MockBackend::new(),
+            KafkaFsOptions {
+                view: KafkaView::Time,
+                time_bucket,
+                batch_size: 4,
+                ..KafkaFsOptions::default()
+            },
+        )
+        .unwrap()
+    }
+
     #[test]
-    fn time_reads_start_at_the_first_later_message() {
-        let fs = fs();
-        let at = |ms| {
-            KafkaPath::TimeRead {
-                topic: "orders".into(),
-                partition: 0,
-                timestamp_ms: ms,
-                format: DataFormat::Arrow,
-            }
-            .to_path()
-        };
-        assert_eq!(offsets(&read_arrow(&fs, &at(1_022))), [22, 23, 24]);
+    fn time_buckets_list_down_to_the_bucket_size() {
+        // The mock's messages are at 1970-01-01T00:00:01.000Z plus their offset in milliseconds.
+        let fs = time_fs(TimeLevel::Millisecond);
+        assert_eq!(fs.protocol(), ["kafka+time"]);
         assert_eq!(
-            offsets(&read_arrow(&fs, &at(0))),
+            names(fs.ls("kafka+time://orders", true).unwrap()),
+            ["orders/weeks", "orders/1970"]
+        );
+        assert_eq!(
+            names(fs.ls("orders/1970", true).unwrap()),
+            ["orders/1970/01"]
+        );
+        assert_eq!(
+            names(fs.ls("orders/1970/01/01/00/00", true).unwrap()),
+            ["orders/1970/01/01/00/00/01"]
+        );
+        let leaves = names(fs.ls("orders/1970/01/01/00/00/01", true).unwrap());
+        assert_eq!(leaves.len(), 25);
+        assert_eq!(leaves[5], "orders/1970/01/01/00/00/01/005.arrow");
+        let info = fs.info("orders/1970/01/01").unwrap();
+        assert!(info.is_dir());
+        assert_eq!(info.extra["kind"], "bucket");
+        assert_eq!(info.extra["start"], "1970-01-01T00:00:00.000Z");
+        assert_eq!(info.extra["end"], "1970-01-02T00:00:00.000Z");
+        assert_eq!(
+            names(fs.ls("orders/weeks", true).unwrap()),
+            ["orders/weeks/1970-W01.arrow"]
+        );
+        assert_eq!(
+            names(fs.ls("events.csv", true).unwrap())[1],
+            "events.csv/1970"
+        );
+        assert!(fs.ls("orders/1971", true).unwrap().is_empty());
+        for path in [
+            "orders/1970/01/01/00/00/01/005",
+            "orders/weeks/1970-W01",
+            "missing/1970",
+        ] {
+            assert!(matches!(fs.info(path), Err(FsError::NotFound(_))), "{path}");
+        }
+
+        let fs = time_fs(TimeLevel::Day);
+        assert_eq!(
+            names(fs.ls("orders/1970/01", true).unwrap()),
+            ["orders/1970/01/01.arrow"]
+        );
+        assert!(matches!(
+            fs.info("orders/1970/01/01/00"),
+            Err(FsError::NotFound(_))
+        ));
+        assert!(fs.info("orders/1970/01/01.parquet").unwrap().is_file());
+    }
+
+    #[test]
+    fn time_buckets_read_their_messages() {
+        let fs = time_fs(TimeLevel::Millisecond);
+        assert_eq!(
+            offsets(&read_arrow(&fs, "orders/1970/01/01/00/00/01/005.arrow")),
+            [5]
+        );
+        assert_eq!(
+            offsets(&read_arrow(&fs, "orders/1970.arrow")),
             (0..25).collect::<Vec<_>>()
         );
-        assert!(read_arrow(&fs, &at(1_025)).is_empty());
-        assert!(fs.info(&at(0)).unwrap().is_file());
+        assert_eq!(
+            offsets(&read_arrow(&fs, "orders/weeks/1970-W01.arrow")),
+            (0..25).collect::<Vec<_>>()
+        );
+        assert!(read_arrow(&fs, "orders/1971.arrow").is_empty());
         assert!(matches!(
-            fs.info("orders/9/@2026-11-01T00:00:00Z.arrow"),
-            Err(FsError::NotFound(_))
+            fs.open("orders/1970", OpenMode::Read, None),
+            Err(FsError::IsADirectory(_))
         ));
     }
 
@@ -1318,7 +1691,7 @@ mod tests {
             ]
         );
         assert_eq!(*fs.backend().deleted.lock().unwrap(), ["orders"]);
-        for path in ["", "orders/0", "orders/_meta", "orders/0/0-9.arrow"] {
+        for path in ["", "orders/0", "orders/0/0-9.arrow"] {
             assert!(
                 matches!(fs.mkdir(path, true), Err(FsError::NotSupported(_))),
                 "{path}"
@@ -1379,7 +1752,7 @@ mod tests {
     #[test]
     fn only_topics_and_partitions_stream() {
         let fs = fs();
-        for path in ["", "orders/_meta", "orders/0/0-10.arrow", "orders/records"] {
+        for path in ["", "orders/0/0-10.arrow", "orders/records"] {
             assert!(matches!(
                 fs.stream(path, StreamStart::End),
                 Err(FsError::InvalidArgument(_))
@@ -1451,11 +1824,7 @@ mod tests {
             ]
         );
 
-        for path in [
-            "orders/0/0-9.arrow",
-            "orders/0.arrow?start=3",
-            "orders/_meta/config.json",
-        ] {
+        for path in ["orders/0/0-9.arrow", "orders/0.arrow?start=3"] {
             assert!(matches!(
                 fs.open(path, OpenMode::Append, None),
                 Err(FsError::NotSupported(_))
