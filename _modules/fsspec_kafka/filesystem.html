@@ -587,7 +587,14 @@ window.runMermaid = runMermaid;</script>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.fsspec_kafka</span><span class="w"> </span><span class="kn">import</span> <span class="n">RustKafkaFs</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"KafkaFile"</span><span class="p">,</span> <span class="s2">"KafkaFileSystem"</span><span class="p">,</span> <span class="s2">"KafkaStream"</span><span class="p">)</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s2">"KafkaFile"</span><span class="p">,</span>
+    <span class="s2">"KafkaFileSystem"</span><span class="p">,</span>
+    <span class="s2">"KafkaHistoryFileSystem"</span><span class="p">,</span>
+    <span class="s2">"KafkaRecordsFileSystem"</span><span class="p">,</span>
+    <span class="s2">"KafkaStream"</span><span class="p">,</span>
+    <span class="s2">"KafkaTimeFileSystem"</span><span class="p">,</span>
+<span class="p">)</span>
 
 <span class="c1"># Storage options handled by AbstractFileSystem rather than librdkafka.</span>
 <span class="n">_FSSPEC_OPTIONS</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s2">"use_listings_cache"</span><span class="p">,</span> <span class="s2">"listings_expiry_time"</span><span class="p">,</span> <span class="s2">"max_paths"</span><span class="p">,</span> <span class="s2">"asynchronous"</span><span class="p">,</span> <span class="s2">"loop"</span><span class="p">})</span>
@@ -602,7 +609,14 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="KafkaFileSystem">
 <a class="viewcode-back" href="../../autoapi/fsspec_kafka/index.html#fsspec_kafka.filesystem.KafkaFileSystem">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">KafkaFileSystem</span><span class="p">(</span><span class="n">AbstractFileSystem</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">"""Kafka topics and partitions as an fsspec filesystem.</span>
+<span class="w">    </span><span class="sd">"""Kafka topics as an fsspec filesystem, with partitions of fixed offset windows.</span>
+
+<span class="sd">    Registered as ``kafka+offset`` and ``kafka``. ``topic/partition/start-end.arrow`` is a</span>
+<span class="sd">    window of ``window_size`` offsets, ``topic/partition.arrow?start=&amp;limit=`` a bounded read,</span>
+<span class="sd">    and ``topic.arrow`` the whole topic, in any of the ``.arrow``, ``.parquet``, ``.csv``, and</span>
+<span class="sd">    ``.jsonl`` formats. ``metadata`` describes a topic or partition. The other protocols</span>
+<span class="sd">    arrange the same messages differently: ``kafka+time`` by timestamp, ``kafka+records``</span>
+<span class="sd">    as the latest value of each key, and ``kafka+history`` as every message of each key.</span>
 
 <span class="sd">    Storage options other than the named arguments are librdkafka properties, for example</span>
 <span class="sd">    ``fsspec.filesystem("kafka", **{"bootstrap.servers": "localhost:9092"})``. They can also</span>
@@ -626,8 +640,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    single binary or string column.</span>
 <span class="sd">    """</span>
 
-    <span class="n">protocol</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"kafka"</span><span class="p">,)</span>
+    <span class="n">protocol</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"kafka"</span><span class="p">,</span> <span class="s2">"kafka+offset"</span><span class="p">)</span>
     <span class="n">root_marker</span> <span class="o">=</span> <span class="s2">""</span>
+    <span class="n">_view</span> <span class="o">=</span> <span class="s2">"offset"</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
@@ -646,11 +661,14 @@ window.runMermaid = runMermaid;</script>
         <span class="n">partition_column</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">timestamp_column</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">headers_column</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">time_bucket</span><span class="o">=</span><span class="s2">"millisecond"</span><span class="p">,</span>
         <span class="o">**</span><span class="n">storage_options</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">storage_options</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">_FSSPEC_OPTIONS</span> <span class="o">&amp;</span> <span class="n">storage_options</span><span class="o">.</span><span class="n">keys</span><span class="p">()})</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_rust</span> <span class="o">=</span> <span class="n">RustKafkaFs</span><span class="p">(</span>
             <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">_property</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">storage_options</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
+            <span class="n">view</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_view</span><span class="p">,</span>
+            <span class="n">time_bucket</span><span class="o">=</span><span class="n">time_bucket</span><span class="p">,</span>
             <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">,</span>
             <span class="n">window_size</span><span class="o">=</span><span class="n">window_size</span><span class="p">,</span>
             <span class="n">list_format</span><span class="o">=</span><span class="n">list_format</span><span class="p">,</span>
@@ -679,6 +697,25 @@ window.runMermaid = runMermaid;</script>
 <a class="viewcode-back" href="../../autoapi/fsspec_kafka/index.html#fsspec_kafka.filesystem.KafkaFileSystem.info">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">info</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rust</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_strip_protocol</span><span class="p">(</span><span class="n">path</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="KafkaFileSystem.metadata">
+<a class="viewcode-back" href="../../autoapi/fsspec_kafka/index.html#fsspec_kafka.filesystem.KafkaFileSystem.metadata">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">metadata</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Partitions, leaders, replicas, in-sync replicas, and low and high watermarks of a</span>
+<span class="sd">        topic or partition, and the configuration of a topic."""</span>
+        <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rust</span><span class="o">.</span><span class="n">metadata</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_strip_protocol</span><span class="p">(</span><span class="n">path</span><span class="p">)))</span></div>
+
+
+<div class="viewcode-block" id="KafkaFileSystem.offsets_for_time">
+<a class="viewcode-back" href="../../autoapi/fsspec_kafka/index.html#fsspec_kafka.filesystem.KafkaFileSystem.offsets_for_time">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">offsets_for_time</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">time</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""The first offset at or after ``time`` in each partition of a topic, or of one</span>
+<span class="sd">        ``kafka+offset`` partition, as ``{partition: offset}``. Partitions without such a</span>
+<span class="sd">        message map to their high watermark. ``time`` is a ``datetime`` or ISO 8601 string."""</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span><span class="n">time</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rust</span><span class="o">.</span><span class="n">offsets_for_time</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_strip_protocol</span><span class="p">(</span><span class="n">path</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">timestamp</span><span class="p">()</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">))</span></div>
 
 
 <div class="viewcode-block" id="KafkaFileSystem._open">
@@ -714,8 +751,8 @@ window.runMermaid = runMermaid;</script>
 <div class="viewcode-block" id="KafkaFileSystem.makedirs">
 <a class="viewcode-back" href="../../autoapi/fsspec_kafka/index.html#fsspec_kafka.filesystem.KafkaFileSystem.makedirs">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">makedirs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="c1"># Directories inside topic/records exist only while they hold keys, so checking</span>
-        <span class="c1"># first lets mappers write without allow_admin.</span>
+        <span class="c1"># kafka+records key directories exist only while they hold keys, so checking first</span>
+        <span class="c1"># lets mappers write without allow_admin.</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">exist_ok</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="ne">FileExistsError</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
@@ -742,6 +779,56 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">        """</span>
         <span class="k">return</span> <span class="n">KafkaStream</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rust</span><span class="o">.</span><span class="n">stream</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_strip_protocol</span><span class="p">(</span><span class="n">path</span><span class="p">),</span> <span class="n">_stream_start</span><span class="p">(</span><span class="n">start</span><span class="p">)))</span></div>
 </div>
+
+
+
+<div class="viewcode-block" id="KafkaTimeFileSystem">
+<a class="viewcode-back" href="../../autoapi/fsspec_kafka/index.html#fsspec_kafka.filesystem.KafkaTimeFileSystem">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">KafkaTimeFileSystem</span><span class="p">(</span><span class="n">KafkaFileSystem</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Kafka topics arranged by message timestamp, registered as ``kafka+time``.</span>
+
+<span class="sd">    ``topic/YYYY/MM/DD/hh/mm/ss/mmm`` nests UTC time buckets, and ``topic/weeks/YYYY-Www``</span>
+<span class="sd">    holds ISO weeks. Each bucket is a directory of the next level and, with an extension</span>
+<span class="sd">    such as ``topic/2026/11.parquet``, a file of its messages. Buckets at the</span>
+<span class="sd">    ``time_bucket`` level (``year``, ``month``, ``day``, ``hour``, ``minute``, ``second``,</span>
+<span class="sd">    or the default ``millisecond``) and weeks are listed as files in ``list_format``.</span>
+<span class="sd">    Listings cover the time between the topic's first and last messages, so they can</span>
+<span class="sd">    include empty buckets. Reads find their offsets in the broker's time index, which</span>
+<span class="sd">    assumes timestamps increase with offsets within a partition.</span>
+<span class="sd">    """</span>
+
+    <span class="n">protocol</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"kafka+time"</span><span class="p">,)</span>
+    <span class="n">_view</span> <span class="o">=</span> <span class="s2">"time"</span></div>
+
+
+
+<div class="viewcode-block" id="KafkaRecordsFileSystem">
+<a class="viewcode-back" href="../../autoapi/fsspec_kafka/index.html#fsspec_kafka.filesystem.KafkaRecordsFileSystem">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">KafkaRecordsFileSystem</span><span class="p">(</span><span class="n">KafkaFileSystem</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""The latest value of each key in a compacted topic, registered as ``kafka+records``.</span>
+
+<span class="sd">    ``topic/{key...}`` reads, writes, and deletes one key: writing produces a message and</span>
+<span class="sd">    deleting produces a tombstone. ``topic.arrow`` holds the latest message of each key.</span>
+<span class="sd">    With ``allow_admin=True``, ``mkdir("topic")`` creates a compacted topic without time</span>
+<span class="sd">    retention. Topics that are not compacted are refused, since values could age out.</span>
+<span class="sd">    """</span>
+
+    <span class="n">protocol</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"kafka+records"</span><span class="p">,)</span>
+    <span class="n">_view</span> <span class="o">=</span> <span class="s2">"records"</span></div>
+
+
+
+<div class="viewcode-block" id="KafkaHistoryFileSystem">
+<a class="viewcode-back" href="../../autoapi/fsspec_kafka/index.html#fsspec_kafka.filesystem.KafkaHistoryFileSystem">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">KafkaHistoryFileSystem</span><span class="p">(</span><span class="n">KafkaFileSystem</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Every message of each key, registered as ``kafka+history``.</span>
+
+<span class="sd">    ``topic/{key...}`` is a file of the key's retained messages in ``list_format``,</span>
+<span class="sd">    including tombstones. Listing keys and reading a key read the whole topic.</span>
+<span class="sd">    """</span>
+
+    <span class="n">protocol</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"kafka+history"</span><span class="p">,)</span>
+    <span class="n">_view</span> <span class="o">=</span> <span class="s2">"history"</span></div>
 
 
 

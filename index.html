@@ -184,7 +184,34 @@
 <a class="reference external" href="https://pypi.python.org/pypi/fsspec-kafka"><img alt="PyPI" src="https://img.shields.io/pypi/v/fsspec-kafka.svg" /></a></p>
 <section id="overview">
 <h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">¶</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">fsspec-kafka</span></code> registers the <code class="docutils literal notranslate"><span class="pre">kafka://</span></code> protocol with fsspec. Topics are directories, and each partition is a directory of fixed offset windows that read as Arrow, Parquet, CSV, or JSON Lines.</p>
+<p><code class="docutils literal notranslate"><span class="pre">fsspec-kafka</span></code> registers Kafka with fsspec. Topics are directories, and messages read as Arrow, Parquet, CSV, or JSON Lines. Each protocol arranges a topic’s messages in one way:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Protocol</p></th>
+<th class="head"><p>Layout</p></th>
+<th class="head"><p>Contents</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">kafka+offset://</span></code>, <code class="docutils literal notranslate"><span class="pre">kafka://</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">topic/{partition}/{start}-{end}.arrow</span></code></p></td>
+<td><p>Fixed offset windows of each partition</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">kafka+time://</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">topic/{YYYY}/{MM}/{DD}/{hh}/{mm}/{ss}/{mmm}.arrow</span></code></p></td>
+<td><p>Messages by UTC timestamp, plus <code class="docutils literal notranslate"><span class="pre">topic/weeks/</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">kafka+records://</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">topic/{key...}</span></code></p></td>
+<td><p>The latest value of each key in a compacted topic</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">kafka+history://</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">topic/{key...}</span></code></p></td>
+<td><p>Every message of each key</p></td>
+</tr>
+</tbody>
+</table>
+<p>In every protocol, <code class="docutils literal notranslate"><span class="pre">topic.parquet</span></code> (or another extension) reads the whole topic; in <code class="docutils literal notranslate"><span class="pre">kafka+records</span></code>, it holds the latest message of each key.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">fsspec</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
 
@@ -210,53 +237,57 @@
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">window_size</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">10000</span></code></p></td>
-<td><p>Offsets per window file</p></td>
+<td><p>Offsets per <code class="docutils literal notranslate"><span class="pre">kafka+offset</span></code> window</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">list_format</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">time_bucket</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;millisecond&quot;</span></code></p></td>
+<td><p>Deepest <code class="docutils literal notranslate"><span class="pre">kafka+time</span></code> level: <code class="docutils literal notranslate"><span class="pre">year</span></code> through <code class="docutils literal notranslate"><span class="pre">millisecond</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">list_format</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">&quot;arrow&quot;</span></code></p></td>
-<td><p>Extension used when listing windows</p></td>
+<td><p>Extension used when listing message files</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">batch_size</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">batch_size</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">1024</span></code></p></td>
 <td><p>Messages per Arrow record batch</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">allow_admin</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">allow_admin</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
 <td><p>Lets <code class="docutils literal notranslate"><span class="pre">mkdir</span></code> create topics and <code class="docutils literal notranslate"><span class="pre">rmdir</span></code> delete them</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">partitions</span></code>, <code class="docutils literal notranslate"><span class="pre">replication</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">partitions</span></code>, <code class="docutils literal notranslate"><span class="pre">replication</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">-1</span></code></p></td>
 <td><p>Settings for created topics; <code class="docutils literal notranslate"><span class="pre">-1</span></code> uses the broker default</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">topic_config</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">topic_config</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">{}</span></code></p></td>
 <td><p>Configuration for created topics</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">value_format</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">value_format</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">&quot;binary&quot;</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">&quot;json&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;avro&quot;</span></code>, or <code class="docutils literal notranslate"><span class="pre">&quot;confluent&quot;</span></code> decodes values with <code class="docutils literal notranslate"><span class="pre">value_schema</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">value_schema</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">value_schema</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">pyarrow.Schema</span></code> or fsspec-data schema reference</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">flatten_value</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">flatten_value</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
 <td><p>Puts JSON fields beside the message columns</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">key_column</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">key_column</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
 <td><p>Input column for message keys when appending</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">partition_column</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">partition_column</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
 <td><p>Input column for partitions when appending</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">timestamp_column</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">timestamp_column</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
 <td><p>Input column for timestamps when appending</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">headers_column</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">headers_column</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
 <td><p>Input column for headers, a map, when appending</p></td>
 </tr>
@@ -274,18 +305,26 @@
 <span class="n">fs</span> <span class="o">=</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">filesystem</span><span class="p">(</span><span class="s2">"kafka"</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">,</span> <span class="n">value_format</span><span class="o">=</span><span class="s2">"confluent"</span><span class="p">,</span> <span class="n">value_schema</span><span class="o">=</span><span class="n">schema</span><span class="p">,</span> <span class="n">flatten_value</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>Topics are append-only. Opening <code class="docutils literal notranslate"><span class="pre">topic.format</span></code> or <code class="docutils literal notranslate"><span class="pre">topic/partition.format</span></code> with mode <code class="docutils literal notranslate"><span class="pre">&quot;ab&quot;</span></code> produces one message per row of the file when it closes. The mapped columns set the message fields, and the remaining columns are the value: a JSON object with <code class="docutils literal notranslate"><span class="pre">value_format=&quot;json&quot;</span></code>, an Avro record with Avro values, otherwise a single binary or string column. CSV and JSON Lines columns are typed from <code class="docutils literal notranslate"><span class="pre">value_schema</span></code>.</p>
+<p>Topics are append-only. Opening <code class="docutils literal notranslate"><span class="pre">topic.format</span></code>, or <code class="docutils literal notranslate"><span class="pre">topic/partition.format</span></code> in <code class="docutils literal notranslate"><span class="pre">kafka+offset</span></code>, with mode <code class="docutils literal notranslate"><span class="pre">&quot;ab&quot;</span></code> produces one message per row of the file when it closes. The mapped columns set the message fields, and the remaining columns are the value: a JSON object with <code class="docutils literal notranslate"><span class="pre">value_format=&quot;json&quot;</span></code>, an Avro record with Avro values, otherwise a single binary or string column. CSV and JSON Lines columns are typed from <code class="docutils literal notranslate"><span class="pre">value_schema</span></code>.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">fs</span> <span class="o">=</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">filesystem</span><span class="p">(</span><span class="s2">"kafka"</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">,</span> <span class="n">value_format</span><span class="o">=</span><span class="s2">"json"</span><span class="p">,</span> <span class="n">value_schema</span><span class="o">=</span><span class="n">schema</span><span class="p">,</span> <span class="n">key_column</span><span class="o">=</span><span class="s2">"order_id"</span><span class="p">)</span>
 <span class="k">with</span> <span class="n">fs</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">"orders.parquet"</span><span class="p">,</span> <span class="s2">"ab"</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
     <span class="n">frame</span><span class="o">.</span><span class="n">to_parquet</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>Options can also come from fsspec configuration, for example <code class="docutils literal notranslate"><span class="pre">FSSPEC_KAFKA='{&quot;bootstrap.servers&quot;:</span> <span class="pre">&quot;localhost:9092&quot;}'</span></code>.</p>
-<p>On a compacted topic, <code class="docutils literal notranslate"><span class="pre">topic/records</span></code> holds the latest value of each key, so it works as a key-value store:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span> <span class="o">=</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">get_mapper</span><span class="p">(</span><span class="s2">"kafka://state/records"</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
+<p><code class="docutils literal notranslate"><span class="pre">fs.metadata(&quot;orders&quot;)</span></code> returns a topic’s configuration and, for each partition, its leader, replicas, in-sync replicas, and low and high watermarks. <code class="docutils literal notranslate"><span class="pre">fs.metadata(&quot;orders/0&quot;)</span></code> returns one partition’s. <code class="docutils literal notranslate"><span class="pre">fs.offsets_for_time(&quot;orders&quot;,</span> <span class="pre">time)</span></code> returns the first offset at or after a time in each partition.</p>
+<p><code class="docutils literal notranslate"><span class="pre">kafka+time</span></code> nests UTC time buckets from years down to <code class="docutils literal notranslate"><span class="pre">time_bucket</span></code>, which defaults to milliseconds. Each bucket is a directory of the next level, and with an extension, such as <code class="docutils literal notranslate"><span class="pre">orders/2026/11.parquet</span></code>, a file of its messages. Buckets at the <code class="docutils literal notranslate"><span class="pre">time_bucket</span></code> level and the ISO weeks in <code class="docutils literal notranslate"><span class="pre">topic/weeks/</span></code> are listed as files. Listings cover the time between a topic’s first and last messages. Reads use the broker’s time index, which assumes timestamps increase with offsets within a partition.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">fs</span> <span class="o">=</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">filesystem</span><span class="p">(</span><span class="s2">"kafka+time"</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">,</span> <span class="n">time_bucket</span><span class="o">=</span><span class="s2">"hour"</span><span class="p">)</span>
+<span class="n">fs</span><span class="o">.</span><span class="n">ls</span><span class="p">(</span><span class="s2">"orders/2026/11/17"</span><span class="p">,</span> <span class="n">detail</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>  <span class="c1"># ["orders/2026/11/17/00.arrow", ...]</span>
+<span class="n">frame</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_parquet</span><span class="p">(</span><span class="s2">"kafka+time://orders/weeks/2026-W47.parquet"</span><span class="p">,</span> <span class="n">storage_options</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">kafka+records</span></code> keeps the latest value of each key in a compacted topic, so it works as a key-value store. Writing a key produces a message and deleting it produces a tombstone. With <code class="docutils literal notranslate"><span class="pre">allow_admin=True</span></code>, <code class="docutils literal notranslate"><span class="pre">mkdir(&quot;state&quot;)</span></code> creates a compacted topic without time retention.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span> <span class="o">=</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">get_mapper</span><span class="p">(</span><span class="s2">"kafka+records://state"</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
 <span class="n">state</span><span class="p">[</span><span class="s2">"user/42"</span><span class="p">]</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">"..."</span>
 </pre></div>
 </div>
+<p><code class="docutils literal notranslate"><span class="pre">kafka+history</span></code> lists the same keys in any topic, and each key reads as a <code class="docutils literal notranslate"><span class="pre">list_format</span></code> file of every retained message with that key, including tombstones. Listing keys and reading a key both read the whole topic.</p>
 <p><code class="docutils literal notranslate"><span class="pre">fs.stream</span></code> follows a topic or one partition as it grows, returning <code class="docutils literal notranslate"><span class="pre">pyarrow.RecordBatch</span></code> objects with the same columns as <code class="docutils literal notranslate"><span class="pre">.arrow</span></code> files. It starts at <code class="docutils literal notranslate"><span class="pre">&quot;end&quot;</span></code> by default; <code class="docutils literal notranslate"><span class="pre">&quot;beginning&quot;</span></code>, a <code class="docutils literal notranslate"><span class="pre">datetime</span></code>, or the <code class="docutils literal notranslate"><span class="pre">positions</span></code> of an earlier stream are also accepted.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">fs</span><span class="o">.</span><span class="n">stream</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="s2">"beginning"</span><span class="p">)</span> <span class="k">as</span> <span class="n">stream</span><span class="p">:</span>
     <span class="k">for</span> <span class="n">batch</span> <span class="ow">in</span> <span class="n">stream</span><span class="p">:</span>  <span class="c1"># waits for new messages</span>
@@ -293,7 +332,7 @@
         <span class="n">save</span><span class="p">(</span><span class="n">stream</span><span class="o">.</span><span class="n">positions</span><span class="p">)</span>  <span class="c1"># {partition: next offset}, to resume with start=positions</span>
 </pre></div>
 </div>
-<p>From Rust, register the <code class="docutils literal notranslate"><span class="pre">kafka</span></code> protocol with an fsspec-rs <code class="docutils literal notranslate"><span class="pre">FilesystemRegistry</span></code> and open URLs with the same storage options. <code class="docutils literal notranslate"><span class="pre">value_format</span></code> accepts only <code class="docutils literal notranslate"><span class="pre">binary</span></code> here, and <code class="docutils literal notranslate"><span class="pre">topic_config.&lt;name&gt;</span></code> keys set the configuration of created topics; construct <code class="docutils literal notranslate"><span class="pre">KafkaFs</span></code> with <code class="docutils literal notranslate"><span class="pre">KafkaFsOptions</span></code> for decoded values.</p>
+<p>From Rust, register the Kafka protocols with an fsspec-rs <code class="docutils literal notranslate"><span class="pre">FilesystemRegistry</span></code> and open URLs with the same storage options. <code class="docutils literal notranslate"><span class="pre">value_format</span></code> accepts only <code class="docutils literal notranslate"><span class="pre">binary</span></code> here, and <code class="docutils literal notranslate"><span class="pre">topic_config.&lt;name&gt;</span></code> keys set the configuration of created topics; construct <code class="docutils literal notranslate"><span class="pre">KafkaFs</span></code> with <code class="docutils literal notranslate"><span class="pre">KafkaFsOptions</span></code> for decoded values.</p>
 <div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">registry</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fsspec_rs</span><span class="p">::</span><span class="n">FilesystemRegistry</span><span class="p">::</span><span class="n">default</span><span class="p">();</span>
 <span class="n">fsspec_kafka</span><span class="p">::</span><span class="n">register</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">registry</span><span class="p">);</span>
 <span class="kd">let</span><span class="w"> </span><span class="n">options</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[(</span><span class="s">"bootstrap.servers"</span><span class="p">.</span><span class="n">to_string</span><span class="p">(),</span><span class="w"> </span><span class="s">"localhost:9092"</span><span class="p">.</span><span class="n">to_string</span><span class="p">())].</span><span class="n">into</span><span class="p">();</span>

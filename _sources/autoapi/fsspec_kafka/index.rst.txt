@@ -21,7 +21,10 @@ Classes
 
    fsspec_kafka.KafkaFile
    fsspec_kafka.KafkaFileSystem
+   fsspec_kafka.KafkaHistoryFileSystem
+   fsspec_kafka.KafkaRecordsFileSystem
    fsspec_kafka.KafkaStream
+   fsspec_kafka.KafkaTimeFileSystem
 
 
 Functions
@@ -152,12 +155,19 @@ Package Contents
    .. py:method:: __exit__(exc_type, exc_val, exc_tb)
 
 
-.. py:class:: KafkaFileSystem(timeout=10.0, window_size=10000, list_format='arrow', batch_size=1024, allow_admin=False, partitions=-1, replication=-1, topic_config=None, value_format='binary', value_schema=None, flatten_value=False, key_column=None, partition_column=None, timestamp_column=None, headers_column=None, **storage_options)
+.. py:class:: KafkaFileSystem(timeout=10.0, window_size=10000, list_format='arrow', batch_size=1024, allow_admin=False, partitions=-1, replication=-1, topic_config=None, value_format='binary', value_schema=None, flatten_value=False, key_column=None, partition_column=None, timestamp_column=None, headers_column=None, time_bucket='millisecond', **storage_options)
 
    Bases: :py:obj:`fsspec.AbstractFileSystem`
 
 
-   Kafka topics and partitions as an fsspec filesystem.
+   Kafka topics as an fsspec filesystem, with partitions of fixed offset windows.
+
+   Registered as ``kafka+offset`` and ``kafka``. ``topic/partition/start-end.arrow`` is a
+   window of ``window_size`` offsets, ``topic/partition.arrow?start=&limit=`` a bounded read,
+   and ``topic.arrow`` the whole topic, in any of the ``.arrow``, ``.parquet``, ``.csv``, and
+   ``.jsonl`` formats. ``metadata`` describes a topic or partition. The other protocols
+   arrange the same messages differently: ``kafka+time`` by timestamp, ``kafka+records``
+   as the latest value of each key, and ``kafka+history`` as every message of each key.
 
    Storage options other than the named arguments are librdkafka properties, for example
    ``fsspec.filesystem("kafka", **{"bootstrap.servers": "localhost:9092"})``. They can also
@@ -210,12 +220,17 @@ Package Contents
 
 
    .. py:attribute:: protocol
-      :value: ('kafka',)
+      :value: ('kafka', 'kafka+offset')
 
 
 
    .. py:attribute:: root_marker
       :value: ''
+
+
+
+   .. py:attribute:: _view
+      :value: 'offset'
 
 
 
@@ -276,6 +291,21 @@ Package Contents
 
       :returns: * **dict with keys** (*name (full path in the FS), size (in bytes), type (file,*)
                 * *directory, or something else) and other FS-specific keys.*
+
+
+
+   .. py:method:: metadata(path)
+
+      Partitions, leaders, replicas, in-sync replicas, and low and high watermarks of a
+      topic or partition, and the configuration of a topic.
+
+
+
+   .. py:method:: offsets_for_time(path, time)
+
+      The first offset at or after ``time`` in each partition of a topic, or of one
+      ``kafka+offset`` partition, as ``{partition: offset}``. Partitions without such a
+      message map to their high watermark. ``time`` is a ``datetime`` or ISO 8601 string.
 
 
 
@@ -364,6 +394,106 @@ Package Contents
 
 
 
+.. py:class:: KafkaHistoryFileSystem(timeout=10.0, window_size=10000, list_format='arrow', batch_size=1024, allow_admin=False, partitions=-1, replication=-1, topic_config=None, value_format='binary', value_schema=None, flatten_value=False, key_column=None, partition_column=None, timestamp_column=None, headers_column=None, time_bucket='millisecond', **storage_options)
+
+   Bases: :py:obj:`KafkaFileSystem`
+
+
+   Every message of each key, registered as ``kafka+history``.
+
+   ``topic/{key...}`` is a file of the key's retained messages in ``list_format``,
+   including tombstones. Listing keys and reading a key read the whole topic.
+
+   Create and configure file-system instance
+
+   Instances may be cachable, so if similar enough arguments are seen
+   a new instance is not required. The token attribute exists to allow
+   implementations to cache instances if they wish.
+
+   A reasonable default should be provided if there are no arguments.
+
+   Subclasses should call this method.
+
+   :param use_listings_cache: passed to ``DirCache``, if the implementation supports
+                              directory listing caching. Pass use_listings_cache=False
+                              to disable such caching.
+   :param listings_expiry_time: passed to ``DirCache``, if the implementation supports
+                                directory listing caching. Pass use_listings_cache=False
+                                to disable such caching.
+   :param max_paths: passed to ``DirCache``, if the implementation supports
+                     directory listing caching. Pass use_listings_cache=False
+                     to disable such caching.
+   :param skip_instance_cache: If this is a cachable implementation, pass True here to force
+                               creating a new instance even if a matching instance exists, and prevent
+                               storing this instance.
+   :type skip_instance_cache: bool
+   :param asynchronous:
+   :type asynchronous: bool
+   :param loop:
+   :type loop: asyncio-compatible IOLoop or None
+
+
+   .. py:attribute:: protocol
+      :value: ('kafka+history',)
+
+
+
+   .. py:attribute:: _view
+      :value: 'history'
+
+
+
+.. py:class:: KafkaRecordsFileSystem(timeout=10.0, window_size=10000, list_format='arrow', batch_size=1024, allow_admin=False, partitions=-1, replication=-1, topic_config=None, value_format='binary', value_schema=None, flatten_value=False, key_column=None, partition_column=None, timestamp_column=None, headers_column=None, time_bucket='millisecond', **storage_options)
+
+   Bases: :py:obj:`KafkaFileSystem`
+
+
+   The latest value of each key in a compacted topic, registered as ``kafka+records``.
+
+   ``topic/{key...}`` reads, writes, and deletes one key: writing produces a message and
+   deleting produces a tombstone. ``topic.arrow`` holds the latest message of each key.
+   With ``allow_admin=True``, ``mkdir("topic")`` creates a compacted topic without time
+   retention. Topics that are not compacted are refused, since values could age out.
+
+   Create and configure file-system instance
+
+   Instances may be cachable, so if similar enough arguments are seen
+   a new instance is not required. The token attribute exists to allow
+   implementations to cache instances if they wish.
+
+   A reasonable default should be provided if there are no arguments.
+
+   Subclasses should call this method.
+
+   :param use_listings_cache: passed to ``DirCache``, if the implementation supports
+                              directory listing caching. Pass use_listings_cache=False
+                              to disable such caching.
+   :param listings_expiry_time: passed to ``DirCache``, if the implementation supports
+                                directory listing caching. Pass use_listings_cache=False
+                                to disable such caching.
+   :param max_paths: passed to ``DirCache``, if the implementation supports
+                     directory listing caching. Pass use_listings_cache=False
+                     to disable such caching.
+   :param skip_instance_cache: If this is a cachable implementation, pass True here to force
+                               creating a new instance even if a matching instance exists, and prevent
+                               storing this instance.
+   :type skip_instance_cache: bool
+   :param asynchronous:
+   :type asynchronous: bool
+   :param loop:
+   :type loop: asyncio-compatible IOLoop or None
+
+
+   .. py:attribute:: protocol
+      :value: ('kafka+records',)
+
+
+
+   .. py:attribute:: _view
+      :value: 'records'
+
+
+
 .. py:class:: KafkaStream(stream)
 
    Messages from followed partitions as ``pyarrow.RecordBatch`` objects, with the same
@@ -405,6 +535,61 @@ Package Contents
 
 
    .. py:method:: __exit__(exc_type, exc_val, exc_tb)
+
+
+.. py:class:: KafkaTimeFileSystem(timeout=10.0, window_size=10000, list_format='arrow', batch_size=1024, allow_admin=False, partitions=-1, replication=-1, topic_config=None, value_format='binary', value_schema=None, flatten_value=False, key_column=None, partition_column=None, timestamp_column=None, headers_column=None, time_bucket='millisecond', **storage_options)
+
+   Bases: :py:obj:`KafkaFileSystem`
+
+
+   Kafka topics arranged by message timestamp, registered as ``kafka+time``.
+
+   ``topic/YYYY/MM/DD/hh/mm/ss/mmm`` nests UTC time buckets, and ``topic/weeks/YYYY-Www``
+   holds ISO weeks. Each bucket is a directory of the next level and, with an extension
+   such as ``topic/2026/11.parquet``, a file of its messages. Buckets at the
+   ``time_bucket`` level (``year``, ``month``, ``day``, ``hour``, ``minute``, ``second``,
+   or the default ``millisecond``) and weeks are listed as files in ``list_format``.
+   Listings cover the time between the topic's first and last messages, so they can
+   include empty buckets. Reads find their offsets in the broker's time index, which
+   assumes timestamps increase with offsets within a partition.
+
+   Create and configure file-system instance
+
+   Instances may be cachable, so if similar enough arguments are seen
+   a new instance is not required. The token attribute exists to allow
+   implementations to cache instances if they wish.
+
+   A reasonable default should be provided if there are no arguments.
+
+   Subclasses should call this method.
+
+   :param use_listings_cache: passed to ``DirCache``, if the implementation supports
+                              directory listing caching. Pass use_listings_cache=False
+                              to disable such caching.
+   :param listings_expiry_time: passed to ``DirCache``, if the implementation supports
+                                directory listing caching. Pass use_listings_cache=False
+                                to disable such caching.
+   :param max_paths: passed to ``DirCache``, if the implementation supports
+                     directory listing caching. Pass use_listings_cache=False
+                     to disable such caching.
+   :param skip_instance_cache: If this is a cachable implementation, pass True here to force
+                               creating a new instance even if a matching instance exists, and prevent
+                               storing this instance.
+   :type skip_instance_cache: bool
+   :param asynchronous:
+   :type asynchronous: bool
+   :param loop:
+   :type loop: asyncio-compatible IOLoop or None
+
+
+   .. py:attribute:: protocol
+      :value: ('kafka+time',)
+
+
+
+   .. py:attribute:: _view
+      :value: 'time'
+
 
 
 .. py:function:: builtin_features() -> list[str]

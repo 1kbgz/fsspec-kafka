@@ -17,7 +17,7 @@ Functions
 
 .. autoapisummary::
 
-   test_storage_options.test_kafka_protocol_is_registered
+   test_storage_options.test_kafka_protocols_are_registered
    test_storage_options.test_storage_options_are_librdkafka_properties
    test_storage_options.test_unknown_librdkafka_properties_are_rejected
    test_storage_options.test_invalid_options_are_rejected
@@ -33,7 +33,7 @@ Module Contents
 
 .. py:data:: OPTIONS
 
-.. py:function:: test_kafka_protocol_is_registered()
+.. py:function:: test_kafka_protocols_are_registered(protocol, cls)
 
 .. py:function:: test_storage_options_are_librdkafka_properties()
 

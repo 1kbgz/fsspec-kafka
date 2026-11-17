@@ -201,6 +201,21 @@
     <a href="#test_filesystem.test_lists_topics_partitions_and_windows">test_lists_topics_partitions_and_windows()</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.test_metadata_describes_topics_and_partitions">test_metadata_describes_topics_and_partitions()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.test_offsets_for_time">test_offsets_for_time()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.test_time_buckets_hold_messages_by_timestamp">test_time_buckets_hold_messages_by_timestamp()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.test_history_keeps_every_message_of_a_key">test_history_keeps_every_message_of_a_key()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.test_records_topics_read_as_their_latest_values">test_records_topics_read_as_their_latest_values()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
     <a href="#test_filesystem.test_reads_windows_with_pyarrow">test_reads_windows_with_pyarrow()</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
@@ -310,46 +325,61 @@
 <tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_lists_topics_partitions_and_windows" title="test_filesystem.test_lists_topics_partitions_and_windows"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_lists_topics_partitions_and_windows</span></code></a>(options, topic)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_reads_windows_with_pyarrow" title="test_filesystem.test_reads_windows_with_pyarrow"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_reads_windows_with_pyarrow</span></code></a>(options, topic)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_metadata_describes_topics_and_partitions" title="test_filesystem.test_metadata_describes_topics_and_partitions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_metadata_describes_topics_and_partitions</span></code></a>(options, ...)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_reads_topic_snapshots_with_pandas" title="test_filesystem.test_reads_topic_snapshots_with_pandas"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_reads_topic_snapshots_with_pandas</span></code></a>(options, topic)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_offsets_for_time" title="test_filesystem.test_offsets_for_time"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_offsets_for_time</span></code></a>(options, topic)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_reads_json_values" title="test_filesystem.test_reads_json_values"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_reads_json_values</span></code></a>(options, topic)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_time_buckets_hold_messages_by_timestamp" title="test_filesystem.test_time_buckets_hold_messages_by_timestamp"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_time_buckets_hold_messages_by_timestamp</span></code></a>(options, ...)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_appended_files_read_back" title="test_filesystem.test_appended_files_read_back"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_appended_files_read_back</span></code></a>(options, empty_topic, format)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_history_keeps_every_message_of_a_key" title="test_filesystem.test_history_keeps_every_message_of_a_key"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_history_keeps_every_message_of_a_key</span></code></a>(options, topic)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_appends_binary_values" title="test_filesystem.test_appends_binary_values"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_appends_binary_values</span></code></a>(options, empty_topic)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_records_topics_read_as_their_latest_values" title="test_filesystem.test_records_topics_read_as_their_latest_values"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_records_topics_read_as_their_latest_values</span></code></a>(...)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_confluent_values_with_registry_schemas" title="test_filesystem.test_confluent_values_with_registry_schemas"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_confluent_values_with_registry_schemas</span></code></a>(options, ...)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_reads_windows_with_pyarrow" title="test_filesystem.test_reads_windows_with_pyarrow"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_reads_windows_with_pyarrow</span></code></a>(options, topic)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_avro_values_round_trip" title="test_filesystem.test_avro_values_round_trip"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_avro_values_round_trip</span></code></a>(options, empty_topic)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_reads_topic_snapshots_with_pandas" title="test_filesystem.test_reads_topic_snapshots_with_pandas"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_reads_topic_snapshots_with_pandas</span></code></a>(options, topic)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_confluent_avro_values_resolve_older_versions" title="test_filesystem.test_confluent_avro_values_resolve_older_versions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_confluent_avro_values_resolve_older_versions</span></code></a>(...)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_reads_json_values" title="test_filesystem.test_reads_json_values"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_reads_json_values</span></code></a>(options, topic)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_records_through_open_and_get_mapper" title="test_filesystem.test_records_through_open_and_get_mapper"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_records_through_open_and_get_mapper</span></code></a>(options, topic)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_appended_files_read_back" title="test_filesystem.test_appended_files_read_back"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_appended_files_read_back</span></code></a>(options, empty_topic, format)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_failed_writes_are_discarded" title="test_filesystem.test_failed_writes_are_discarded"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_failed_writes_are_discarded</span></code></a>(options, topic)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_appends_binary_values" title="test_filesystem.test_appends_binary_values"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_appends_binary_values</span></code></a>(options, empty_topic)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_topic_admin_needs_allow_admin" title="test_filesystem.test_topic_admin_needs_allow_admin"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_topic_admin_needs_allow_admin</span></code></a>(options)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_confluent_values_with_registry_schemas" title="test_filesystem.test_confluent_values_with_registry_schemas"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_confluent_values_with_registry_schemas</span></code></a>(options, ...)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_missing_paths_raise_file_not_found" title="test_filesystem.test_missing_paths_raise_file_not_found"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_missing_paths_raise_file_not_found</span></code></a>(options, topic)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_avro_values_round_trip" title="test_filesystem.test_avro_values_round_trip"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_avro_values_round_trip</span></code></a>(options, empty_topic)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_files_support_raw_io" title="test_filesystem.test_files_support_raw_io"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_files_support_raw_io</span></code></a>(options, topic)</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_confluent_avro_values_resolve_older_versions" title="test_filesystem.test_confluent_avro_values_resolve_older_versions"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_confluent_avro_values_resolve_older_versions</span></code></a>(...)</p></td>
 <td><p></p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_streams_follow_new_messages_and_resume" title="test_filesystem.test_streams_follow_new_messages_and_resume"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_streams_follow_new_messages_and_resume</span></code></a>(options, topic)</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_records_through_open_and_get_mapper" title="test_filesystem.test_records_through_open_and_get_mapper"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_records_through_open_and_get_mapper</span></code></a>(options, topic)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_failed_writes_are_discarded" title="test_filesystem.test_failed_writes_are_discarded"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_failed_writes_are_discarded</span></code></a>(options, topic)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_topic_admin_needs_allow_admin" title="test_filesystem.test_topic_admin_needs_allow_admin"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_topic_admin_needs_allow_admin</span></code></a>(options)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_missing_paths_raise_file_not_found" title="test_filesystem.test_missing_paths_raise_file_not_found"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_missing_paths_raise_file_not_found</span></code></a>(options, topic)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_files_support_raw_io" title="test_filesystem.test_files_support_raw_io"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_files_support_raw_io</span></code></a>(options, topic)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_streams_follow_new_messages_and_resume" title="test_filesystem.test_streams_follow_new_messages_and_resume"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_streams_follow_new_messages_and_resume</span></code></a>(options, topic)</p></td>
 <td><p></p></td>
 </tr>
 </tbody>
@@ -401,6 +431,31 @@
 <dl class="py function">
 <dt class="sig sig-object py" id="test_filesystem.test_lists_topics_partitions_and_windows">
 <span class="sig-prename descclassname"><span class="pre">test_filesystem.</span></span><span class="sig-name descname"><span class="pre">test_lists_topics_partitions_and_windows</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topic</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#test_filesystem.test_lists_topics_partitions_and_windows" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="test_filesystem.test_metadata_describes_topics_and_partitions">
+<span class="sig-prename descclassname"><span class="pre">test_filesystem.</span></span><span class="sig-name descname"><span class="pre">test_metadata_describes_topics_and_partitions</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topic</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#test_filesystem.test_metadata_describes_topics_and_partitions" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="test_filesystem.test_offsets_for_time">
+<span class="sig-prename descclassname"><span class="pre">test_filesystem.</span></span><span class="sig-name descname"><span class="pre">test_offsets_for_time</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topic</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#test_filesystem.test_offsets_for_time" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="test_filesystem.test_time_buckets_hold_messages_by_timestamp">
+<span class="sig-prename descclassname"><span class="pre">test_filesystem.</span></span><span class="sig-name descname"><span class="pre">test_time_buckets_hold_messages_by_timestamp</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topic</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#test_filesystem.test_time_buckets_hold_messages_by_timestamp" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="test_filesystem.test_history_keeps_every_message_of_a_key">
+<span class="sig-prename descclassname"><span class="pre">test_filesystem.</span></span><span class="sig-name descname"><span class="pre">test_history_keeps_every_message_of_a_key</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topic</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#test_filesystem.test_history_keeps_every_message_of_a_key" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="test_filesystem.test_records_topics_read_as_their_latest_values">
+<span class="sig-prename descclassname"><span class="pre">test_filesystem.</span></span><span class="sig-name descname"><span class="pre">test_records_topics_read_as_their_latest_values</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topic</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#test_filesystem.test_records_topics_read_as_their_latest_values" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py function">
@@ -554,6 +609,21 @@
   </li>
   <li class="fd-toc-item" data-depth="2">
     <a href="#test_filesystem.test_lists_topics_partitions_and_windows">test_lists_topics_partitions_and_windows()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.test_metadata_describes_topics_and_partitions">test_metadata_describes_topics_and_partitions()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.test_offsets_for_time">test_offsets_for_time()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.test_time_buckets_hold_messages_by_timestamp">test_time_buckets_hold_messages_by_timestamp()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.test_history_keeps_every_message_of_a_key">test_history_keeps_every_message_of_a_key()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.test_records_topics_read_as_their_latest_values">test_records_topics_read_as_their_latest_values()</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
     <a href="#test_filesystem.test_reads_windows_with_pyarrow">test_reads_windows_with_pyarrow()</a>

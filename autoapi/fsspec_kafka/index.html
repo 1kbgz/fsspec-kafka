@@ -240,6 +240,9 @@
     <a href="#fsspec_kafka.KafkaFileSystem.root_marker">KafkaFileSystem.root_marker</a>
   </li>
   <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem._view">KafkaFileSystem._view</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
     <a href="#fsspec_kafka.KafkaFileSystem._rust">KafkaFileSystem._rust</a>
   </li>
   <li class="fd-toc-item" data-depth="3">
@@ -247,6 +250,12 @@
   </li>
   <li class="fd-toc-item" data-depth="3">
     <a href="#fsspec_kafka.KafkaFileSystem.info">KafkaFileSystem.info()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.metadata">KafkaFileSystem.metadata()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.offsets_for_time">KafkaFileSystem.offsets_for_time()</a>
   </li>
   <li class="fd-toc-item" data-depth="3">
     <a href="#fsspec_kafka.KafkaFileSystem._open">KafkaFileSystem._open()</a>
@@ -271,6 +280,24 @@
   </li>
   <li class="fd-toc-item" data-depth="3">
     <a href="#fsspec_kafka.KafkaFileSystem.stream">KafkaFileSystem.stream()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#fsspec_kafka.KafkaHistoryFileSystem">KafkaHistoryFileSystem</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaHistoryFileSystem.protocol">KafkaHistoryFileSystem.protocol</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaHistoryFileSystem._view">KafkaHistoryFileSystem._view</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#fsspec_kafka.KafkaRecordsFileSystem">KafkaRecordsFileSystem</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaRecordsFileSystem.protocol">KafkaRecordsFileSystem.protocol</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaRecordsFileSystem._view">KafkaRecordsFileSystem._view</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
     <a href="#fsspec_kafka.KafkaStream">KafkaStream</a>
@@ -304,6 +331,15 @@
   </li>
   <li class="fd-toc-item" data-depth="3">
     <a href="#fsspec_kafka.KafkaStream.__exit__">KafkaStream.__exit__()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#fsspec_kafka.KafkaTimeFileSystem">KafkaTimeFileSystem</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaTimeFileSystem.protocol">KafkaTimeFileSystem.protocol</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaTimeFileSystem._view">KafkaTimeFileSystem._view</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
     <a href="#fsspec_kafka.builtin_features">builtin_features()</a>
@@ -352,10 +388,19 @@
 <td><p>An open Kafka file. Closing a writer produces its value; leaving a <code class="docutils literal notranslate"><span class="pre">with</span></code> block</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#fsspec_kafka.KafkaFileSystem" title="fsspec_kafka.KafkaFileSystem"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KafkaFileSystem</span></code></a></p></td>
-<td><p>Kafka topics and partitions as an fsspec filesystem.</p></td>
+<td><p>Kafka topics as an fsspec filesystem, with partitions of fixed offset windows.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#fsspec_kafka.KafkaHistoryFileSystem" title="fsspec_kafka.KafkaHistoryFileSystem"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KafkaHistoryFileSystem</span></code></a></p></td>
+<td><p>Every message of each key, registered as <code class="docutils literal notranslate"><span class="pre">kafka+history</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#fsspec_kafka.KafkaRecordsFileSystem" title="fsspec_kafka.KafkaRecordsFileSystem"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KafkaRecordsFileSystem</span></code></a></p></td>
+<td><p>The latest value of each key in a compacted topic, registered as <code class="docutils literal notranslate"><span class="pre">kafka+records</span></code>.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#fsspec_kafka.KafkaStream" title="fsspec_kafka.KafkaStream"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KafkaStream</span></code></a></p></td>
 <td><p>Messages from followed partitions as <code class="docutils literal notranslate"><span class="pre">pyarrow.RecordBatch</span></code> objects, with the same</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#fsspec_kafka.KafkaTimeFileSystem" title="fsspec_kafka.KafkaTimeFileSystem"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KafkaTimeFileSystem</span></code></a></p></td>
+<td><p>Kafka topics arranged by message timestamp, registered as <code class="docutils literal notranslate"><span class="pre">kafka+time</span></code>.</p></td>
 </tr>
 </tbody>
 </table>
@@ -508,9 +553,15 @@ Values for whence are:</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="fsspec_kafka.KafkaFileSystem">
-<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">fsspec_kafka.</span></span><span class="sig-name descname"><span class="pre">KafkaFileSystem</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">list_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'arrow'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batch_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1024</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">allow_admin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">partitions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">replication</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topic_config</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'binary'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_schema</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flatten_value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">key_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">partition_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestamp_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">headers_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">storage_options</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFileSystem"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem" title="Link to this definition">¶</a></dt>
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">fsspec_kafka.</span></span><span class="sig-name descname"><span class="pre">KafkaFileSystem</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">list_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'arrow'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batch_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1024</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">allow_admin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">partitions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">replication</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topic_config</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'binary'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_schema</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flatten_value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">key_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">partition_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestamp_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">headers_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_bucket</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'millisecond'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">storage_options</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFileSystem"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem" title="Link to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-obj docutils literal notranslate"><span class="pre">fsspec.AbstractFileSystem</span></code></p>
-<p>Kafka topics and partitions as an fsspec filesystem.</p>
+<p>Kafka topics as an fsspec filesystem, with partitions of fixed offset windows.</p>
+<p>Registered as <code class="docutils literal notranslate"><span class="pre">kafka+offset</span></code> and <code class="docutils literal notranslate"><span class="pre">kafka</span></code>. <code class="docutils literal notranslate"><span class="pre">topic/partition/start-end.arrow</span></code> is a
+window of <code class="docutils literal notranslate"><span class="pre">window_size</span></code> offsets, <code class="docutils literal notranslate"><span class="pre">topic/partition.arrow?start=&amp;limit=</span></code> a bounded read,
+and <code class="docutils literal notranslate"><span class="pre">topic.arrow</span></code> the whole topic, in any of the <code class="docutils literal notranslate"><span class="pre">.arrow</span></code>, <code class="docutils literal notranslate"><span class="pre">.parquet</span></code>, <code class="docutils literal notranslate"><span class="pre">.csv</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">.jsonl</span></code> formats. <code class="docutils literal notranslate"><span class="pre">metadata</span></code> describes a topic or partition. The other protocols
+arrange the same messages differently: <code class="docutils literal notranslate"><span class="pre">kafka+time</span></code> by timestamp, <code class="docutils literal notranslate"><span class="pre">kafka+records</span></code>
+as the latest value of each key, and <code class="docutils literal notranslate"><span class="pre">kafka+history</span></code> as every message of each key.</p>
 <p>Storage options other than the named arguments are librdkafka properties, for example
 <code class="docutils literal notranslate"><span class="pre">fsspec.filesystem(&quot;kafka&quot;,</span> <span class="pre">**{&quot;bootstrap.servers&quot;:</span> <span class="pre">&quot;localhost:9092&quot;})</span></code>. They can also
 come from fsspec configuration, such as <code class="docutils literal notranslate"><span class="pre">FSSPEC_KAFKA='{&quot;bootstrap.servers&quot;:</span> <span class="pre">&quot;...&quot;}'</span></code>.</p>
@@ -557,12 +608,17 @@ storing this instance.</p></li>
 </dl>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="fsspec_kafka.KafkaFileSystem.protocol">
-<span class="sig-name descname"><span class="pre">protocol</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">('kafka',)</span></em><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem.protocol" title="Link to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">protocol</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">('kafka',</span> <span class="pre">'kafka+offset')</span></em><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem.protocol" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
 <dt class="sig sig-object py" id="fsspec_kafka.KafkaFileSystem.root_marker">
 <span class="sig-name descname"><span class="pre">root_marker</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">''</span></em><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem.root_marker" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFileSystem._view">
+<span class="sig-name descname"><span class="pre">_view</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'offset'</span></em><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem._view" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
@@ -631,6 +687,21 @@ which case, the returned dict will include <code class="docutils literal notrans
 </p>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFileSystem.metadata">
+<span class="sig-name descname"><span class="pre">metadata</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFileSystem.metadata"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem.metadata" title="Link to this definition">¶</a></dt>
+<dd><p>Partitions, leaders, replicas, in-sync replicas, and low and high watermarks of a
+topic or partition, and the configuration of a topic.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaFileSystem.offsets_for_time">
+<span class="sig-name descname"><span class="pre">offsets_for_time</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFileSystem.offsets_for_time"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem.offsets_for_time" title="Link to this definition">¶</a></dt>
+<dd><p>The first offset at or after <code class="docutils literal notranslate"><span class="pre">time</span></code> in each partition of a topic, or of one
+<code class="docutils literal notranslate"><span class="pre">kafka+offset</span></code> partition, as <code class="docutils literal notranslate"><span class="pre">{partition:</span> <span class="pre">offset}</span></code>. Partitions without such a
+message map to their high watermark. <code class="docutils literal notranslate"><span class="pre">time</span></code> is a <code class="docutils literal notranslate"><span class="pre">datetime</span></code> or ISO 8601 string.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -725,6 +796,98 @@ mapping start at the beginning. Partitions added to the topic later are not foll
 </dd></dl>
 
 <dl class="py class">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaHistoryFileSystem">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">fsspec_kafka.</span></span><span class="sig-name descname"><span class="pre">KafkaHistoryFileSystem</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">list_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'arrow'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batch_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1024</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">allow_admin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">partitions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">replication</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topic_config</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'binary'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_schema</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flatten_value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">key_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">partition_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestamp_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">headers_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_bucket</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'millisecond'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">storage_options</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaHistoryFileSystem"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaHistoryFileSystem" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#fsspec_kafka.KafkaFileSystem" title="fsspec_kafka.KafkaFileSystem"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KafkaFileSystem</span></code></a></p>
+<p>Every message of each key, registered as <code class="docutils literal notranslate"><span class="pre">kafka+history</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">topic/{key...}</span></code> is a file of the key’s retained messages in <code class="docutils literal notranslate"><span class="pre">list_format</span></code>,
+including tombstones. Listing keys and reading a key read the whole topic.</p>
+<p>Create and configure file-system instance</p>
+<p>Instances may be cachable, so if similar enough arguments are seen
+a new instance is not required. The token attribute exists to allow
+implementations to cache instances if they wish.</p>
+<p>A reasonable default should be provided if there are no arguments.</p>
+<p>Subclasses should call this method.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>use_listings_cache</strong> – passed to <code class="docutils literal notranslate"><span class="pre">DirCache</span></code>, if the implementation supports
+directory listing caching. Pass use_listings_cache=False
+to disable such caching.</p></li>
+<li><p><strong>listings_expiry_time</strong> – passed to <code class="docutils literal notranslate"><span class="pre">DirCache</span></code>, if the implementation supports
+directory listing caching. Pass use_listings_cache=False
+to disable such caching.</p></li>
+<li><p><strong>max_paths</strong> – passed to <code class="docutils literal notranslate"><span class="pre">DirCache</span></code>, if the implementation supports
+directory listing caching. Pass use_listings_cache=False
+to disable such caching.</p></li>
+<li><p><strong>skip_instance_cache</strong> (<em>bool</em>) – If this is a cachable implementation, pass True here to force
+creating a new instance even if a matching instance exists, and prevent
+storing this instance.</p></li>
+<li><p><strong>asynchronous</strong> (<em>bool</em>)</p></li>
+<li><p><strong>loop</strong> (<em>asyncio-compatible IOLoop</em><em> or </em><em>None</em>)</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaHistoryFileSystem.protocol">
+<span class="sig-name descname"><span class="pre">protocol</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">('kafka+history',)</span></em><a class="headerlink" href="#fsspec_kafka.KafkaHistoryFileSystem.protocol" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaHistoryFileSystem._view">
+<span class="sig-name descname"><span class="pre">_view</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'history'</span></em><a class="headerlink" href="#fsspec_kafka.KafkaHistoryFileSystem._view" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaRecordsFileSystem">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">fsspec_kafka.</span></span><span class="sig-name descname"><span class="pre">KafkaRecordsFileSystem</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">list_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'arrow'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batch_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1024</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">allow_admin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">partitions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">replication</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topic_config</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'binary'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_schema</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flatten_value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">key_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">partition_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestamp_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">headers_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_bucket</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'millisecond'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">storage_options</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaRecordsFileSystem"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaRecordsFileSystem" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#fsspec_kafka.KafkaFileSystem" title="fsspec_kafka.KafkaFileSystem"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KafkaFileSystem</span></code></a></p>
+<p>The latest value of each key in a compacted topic, registered as <code class="docutils literal notranslate"><span class="pre">kafka+records</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">topic/{key...}</span></code> reads, writes, and deletes one key: writing produces a message and
+deleting produces a tombstone. <code class="docutils literal notranslate"><span class="pre">topic.arrow</span></code> holds the latest message of each key.
+With <code class="docutils literal notranslate"><span class="pre">allow_admin=True</span></code>, <code class="docutils literal notranslate"><span class="pre">mkdir(&quot;topic&quot;)</span></code> creates a compacted topic without time
+retention. Topics that are not compacted are refused, since values could age out.</p>
+<p>Create and configure file-system instance</p>
+<p>Instances may be cachable, so if similar enough arguments are seen
+a new instance is not required. The token attribute exists to allow
+implementations to cache instances if they wish.</p>
+<p>A reasonable default should be provided if there are no arguments.</p>
+<p>Subclasses should call this method.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>use_listings_cache</strong> – passed to <code class="docutils literal notranslate"><span class="pre">DirCache</span></code>, if the implementation supports
+directory listing caching. Pass use_listings_cache=False
+to disable such caching.</p></li>
+<li><p><strong>listings_expiry_time</strong> – passed to <code class="docutils literal notranslate"><span class="pre">DirCache</span></code>, if the implementation supports
+directory listing caching. Pass use_listings_cache=False
+to disable such caching.</p></li>
+<li><p><strong>max_paths</strong> – passed to <code class="docutils literal notranslate"><span class="pre">DirCache</span></code>, if the implementation supports
+directory listing caching. Pass use_listings_cache=False
+to disable such caching.</p></li>
+<li><p><strong>skip_instance_cache</strong> (<em>bool</em>) – If this is a cachable implementation, pass True here to force
+creating a new instance even if a matching instance exists, and prevent
+storing this instance.</p></li>
+<li><p><strong>asynchronous</strong> (<em>bool</em>)</p></li>
+<li><p><strong>loop</strong> (<em>asyncio-compatible IOLoop</em><em> or </em><em>None</em>)</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaRecordsFileSystem.protocol">
+<span class="sig-name descname"><span class="pre">protocol</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">('kafka+records',)</span></em><a class="headerlink" href="#fsspec_kafka.KafkaRecordsFileSystem.protocol" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaRecordsFileSystem._view">
+<span class="sig-name descname"><span class="pre">_view</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'records'</span></em><a class="headerlink" href="#fsspec_kafka.KafkaRecordsFileSystem._view" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
 <dt class="sig sig-object py" id="fsspec_kafka.KafkaStream">
 <em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">fsspec_kafka.</span></span><span class="sig-name descname"><span class="pre">KafkaStream</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">stream</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaStream"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaStream" title="Link to this definition">¶</a></dt>
 <dd><p>Messages from followed partitions as <code class="docutils literal notranslate"><span class="pre">pyarrow.RecordBatch</span></code> objects, with the same
@@ -781,6 +944,57 @@ return them as one record batch, or <code class="docutils literal notranslate"><
 <dl class="py method">
 <dt class="sig sig-object py" id="fsspec_kafka.KafkaStream.__exit__">
 <span class="sig-name descname"><span class="pre">__exit__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">exc_type</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exc_val</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exc_tb</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaStream.__exit__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaStream.__exit__" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaTimeFileSystem">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">fsspec_kafka.</span></span><span class="sig-name descname"><span class="pre">KafkaTimeFileSystem</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">list_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'arrow'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batch_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1024</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">allow_admin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">partitions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">replication</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topic_config</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'binary'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_schema</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flatten_value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">key_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">partition_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestamp_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">headers_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_bucket</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'millisecond'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">storage_options</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaTimeFileSystem"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaTimeFileSystem" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#fsspec_kafka.KafkaFileSystem" title="fsspec_kafka.KafkaFileSystem"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KafkaFileSystem</span></code></a></p>
+<p>Kafka topics arranged by message timestamp, registered as <code class="docutils literal notranslate"><span class="pre">kafka+time</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">topic/YYYY/MM/DD/hh/mm/ss/mmm</span></code> nests UTC time buckets, and <code class="docutils literal notranslate"><span class="pre">topic/weeks/YYYY-Www</span></code>
+holds ISO weeks. Each bucket is a directory of the next level and, with an extension
+such as <code class="docutils literal notranslate"><span class="pre">topic/2026/11.parquet</span></code>, a file of its messages. Buckets at the
+<code class="docutils literal notranslate"><span class="pre">time_bucket</span></code> level (<code class="docutils literal notranslate"><span class="pre">year</span></code>, <code class="docutils literal notranslate"><span class="pre">month</span></code>, <code class="docutils literal notranslate"><span class="pre">day</span></code>, <code class="docutils literal notranslate"><span class="pre">hour</span></code>, <code class="docutils literal notranslate"><span class="pre">minute</span></code>, <code class="docutils literal notranslate"><span class="pre">second</span></code>,
+or the default <code class="docutils literal notranslate"><span class="pre">millisecond</span></code>) and weeks are listed as files in <code class="docutils literal notranslate"><span class="pre">list_format</span></code>.
+Listings cover the time between the topic’s first and last messages, so they can
+include empty buckets. Reads find their offsets in the broker’s time index, which
+assumes timestamps increase with offsets within a partition.</p>
+<p>Create and configure file-system instance</p>
+<p>Instances may be cachable, so if similar enough arguments are seen
+a new instance is not required. The token attribute exists to allow
+implementations to cache instances if they wish.</p>
+<p>A reasonable default should be provided if there are no arguments.</p>
+<p>Subclasses should call this method.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>use_listings_cache</strong> – passed to <code class="docutils literal notranslate"><span class="pre">DirCache</span></code>, if the implementation supports
+directory listing caching. Pass use_listings_cache=False
+to disable such caching.</p></li>
+<li><p><strong>listings_expiry_time</strong> – passed to <code class="docutils literal notranslate"><span class="pre">DirCache</span></code>, if the implementation supports
+directory listing caching. Pass use_listings_cache=False
+to disable such caching.</p></li>
+<li><p><strong>max_paths</strong> – passed to <code class="docutils literal notranslate"><span class="pre">DirCache</span></code>, if the implementation supports
+directory listing caching. Pass use_listings_cache=False
+to disable such caching.</p></li>
+<li><p><strong>skip_instance_cache</strong> (<em>bool</em>) – If this is a cachable implementation, pass True here to force
+creating a new instance even if a matching instance exists, and prevent
+storing this instance.</p></li>
+<li><p><strong>asynchronous</strong> (<em>bool</em>)</p></li>
+<li><p><strong>loop</strong> (<em>asyncio-compatible IOLoop</em><em> or </em><em>None</em>)</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaTimeFileSystem.protocol">
+<span class="sig-name descname"><span class="pre">protocol</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">('kafka+time',)</span></em><a class="headerlink" href="#fsspec_kafka.KafkaTimeFileSystem.protocol" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="fsspec_kafka.KafkaTimeFileSystem._view">
+<span class="sig-name descname"><span class="pre">_view</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'time'</span></em><a class="headerlink" href="#fsspec_kafka.KafkaTimeFileSystem._view" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -917,6 +1131,9 @@ return them as one record batch, or <code class="docutils literal notranslate"><
     <a href="#fsspec_kafka.KafkaFileSystem.root_marker">KafkaFileSystem.root_marker</a>
   </li>
   <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem._view">KafkaFileSystem._view</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
     <a href="#fsspec_kafka.KafkaFileSystem._rust">KafkaFileSystem._rust</a>
   </li>
   <li class="fd-toc-item" data-depth="3">
@@ -924,6 +1141,12 @@ return them as one record batch, or <code class="docutils literal notranslate"><
   </li>
   <li class="fd-toc-item" data-depth="3">
     <a href="#fsspec_kafka.KafkaFileSystem.info">KafkaFileSystem.info()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.metadata">KafkaFileSystem.metadata()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaFileSystem.offsets_for_time">KafkaFileSystem.offsets_for_time()</a>
   </li>
   <li class="fd-toc-item" data-depth="3">
     <a href="#fsspec_kafka.KafkaFileSystem._open">KafkaFileSystem._open()</a>
@@ -948,6 +1171,24 @@ return them as one record batch, or <code class="docutils literal notranslate"><
   </li>
   <li class="fd-toc-item" data-depth="3">
     <a href="#fsspec_kafka.KafkaFileSystem.stream">KafkaFileSystem.stream()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#fsspec_kafka.KafkaHistoryFileSystem">KafkaHistoryFileSystem</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaHistoryFileSystem.protocol">KafkaHistoryFileSystem.protocol</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaHistoryFileSystem._view">KafkaHistoryFileSystem._view</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#fsspec_kafka.KafkaRecordsFileSystem">KafkaRecordsFileSystem</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaRecordsFileSystem.protocol">KafkaRecordsFileSystem.protocol</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaRecordsFileSystem._view">KafkaRecordsFileSystem._view</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
     <a href="#fsspec_kafka.KafkaStream">KafkaStream</a>
@@ -981,6 +1222,15 @@ return them as one record batch, or <code class="docutils literal notranslate"><
   </li>
   <li class="fd-toc-item" data-depth="3">
     <a href="#fsspec_kafka.KafkaStream.__exit__">KafkaStream.__exit__()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#fsspec_kafka.KafkaTimeFileSystem">KafkaTimeFileSystem</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaTimeFileSystem.protocol">KafkaTimeFileSystem.protocol</a>
+  </li>
+  <li class="fd-toc-item" data-depth="3">
+    <a href="#fsspec_kafka.KafkaTimeFileSystem._view">KafkaTimeFileSystem._view</a>
   </li>
   <li class="fd-toc-item" data-depth="2">
     <a href="#fsspec_kafka.builtin_features">builtin_features()</a>

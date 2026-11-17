@@ -27,6 +27,11 @@ Functions
    test_filesystem.empty_topic
    test_filesystem._encode
    test_filesystem.test_lists_topics_partitions_and_windows
+   test_filesystem.test_metadata_describes_topics_and_partitions
+   test_filesystem.test_offsets_for_time
+   test_filesystem.test_time_buckets_hold_messages_by_timestamp
+   test_filesystem.test_history_keeps_every_message_of_a_key
+   test_filesystem.test_records_topics_read_as_their_latest_values
    test_filesystem.test_reads_windows_with_pyarrow
    test_filesystem.test_reads_topic_snapshots_with_pandas
    test_filesystem.test_reads_json_values
@@ -66,6 +71,16 @@ Module Contents
 .. py:function:: _encode(table, format)
 
 .. py:function:: test_lists_topics_partitions_and_windows(options, topic)
+
+.. py:function:: test_metadata_describes_topics_and_partitions(options, topic)
+
+.. py:function:: test_offsets_for_time(options, topic)
+
+.. py:function:: test_time_buckets_hold_messages_by_timestamp(options, topic)
+
+.. py:function:: test_history_keeps_every_message_of_a_key(options, topic)
+
+.. py:function:: test_records_topics_read_as_their_latest_values(options, topic)
 
 .. py:function:: test_reads_windows_with_pyarrow(options, topic)
 
