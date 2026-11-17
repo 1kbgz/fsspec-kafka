@@ -96,6 +96,12 @@ state["user/42"] = b"..."
 
 `kafka+history` lists the same keys in any topic, and each key reads as a `list_format` file of every retained message with that key, including tombstones. Listing keys and reading a key both read the whole topic.
 
+Every Kafka filesystem is an [fsspec-data](https://github.com/1kbgz/fsspec-data) data source, so a `dataview` renders its topics, partitions, time buckets, and keys as Parquet, CSV, or JSON files, and each topic's and partition's metadata as `.metadata.json`:
+
+```python
+frame = pd.read_parquet("dataview://orders/2026.parquet::kafka+time://", storage_options={"kafka+time": options})
+```
+
 `fs.stream` follows a topic or one partition as it grows, returning `pyarrow.RecordBatch` objects with the same columns as `.arrow` files. It starts at `"end"` by default; `"beginning"`, a `datetime`, or the `positions` of an earlier stream are also accepted.
 
 ```python

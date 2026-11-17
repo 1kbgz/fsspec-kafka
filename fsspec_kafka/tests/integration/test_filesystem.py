@@ -78,7 +78,7 @@ def test_metadata_describes_topics_and_partitions(options, topic):
     metadata = fs.metadata(f"kafka://{topic}")
     assert metadata["config"]["cleanup.policy"] == "compact"
     assert (metadata["partitions"][0]["low"], metadata["partitions"][0]["high"]) == (0, 3)
-    assert fs.metadata(f"{topic}/0") == metadata["partitions"][0]
+    assert fs.metadata(f"{topic}/0") == {"kind": "partition", **metadata["partitions"][0]}
 
 
 def test_offsets_for_time(options, topic):
@@ -342,3 +342,20 @@ def test_streams_follow_new_messages_and_resume(options, topic):
 
     with fs.stream(topic, start=datetime.now(UTC) + timedelta(hours=1)) as stream:
         assert stream.positions == {0: 5}
+
+
+def test_data_views_render_every_protocol(options, topic):
+    from fsspec_data import DataViewFileSystem
+
+    def view(protocol, **kwargs):
+        return DataViewFileSystem(topic, fs=fsspec.filesystem(protocol, **options, **kwargs))
+
+    offsets = view("kafka")
+    assert "0.parquet" in offsets.ls("", detail=False)
+    assert pyarrow.parquet.read_table(offsets.open("0/0-.parquet")).column("value").to_pylist() == [b"a", b"b", b"c"]
+    assert json.loads(offsets.cat_file(".metadata.json"))["config"]["cleanup.policy"] == "compact"
+
+    year = f"{datetime.now(UTC):%Y}"
+    assert pyarrow.parquet.read_table(view("kafka+time", time_bucket="day").open(f"{year}.parquet")).num_rows == 3
+    assert view("kafka+records").cat_file("a") == b"a"
+    assert pyarrow.parquet.read_table(view("kafka+history").open("b.parquet")).column("value").to_pylist() == [b"b"]
