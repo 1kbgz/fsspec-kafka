@@ -8,7 +8,14 @@ from fsspec import AbstractFileSystem
 
 from .fsspec_kafka import RustKafkaFs
 
-__all__ = ("KafkaFile", "KafkaFileSystem", "KafkaStream")
+__all__ = (
+    "KafkaFile",
+    "KafkaFileSystem",
+    "KafkaHistoryFileSystem",
+    "KafkaRecordsFileSystem",
+    "KafkaStream",
+    "KafkaTimeFileSystem",
+)
 
 # Storage options handled by AbstractFileSystem rather than librdkafka.
 _FSSPEC_OPTIONS = frozenset({"use_listings_cache", "listings_expiry_time", "max_paths", "asynchronous", "loop"})
@@ -21,7 +28,14 @@ def _property(value):
 
 
 class KafkaFileSystem(AbstractFileSystem):
-    """Kafka topics and partitions as an fsspec filesystem.
+    """Kafka topics as an fsspec filesystem, with partitions of fixed offset windows.
+
+    Registered as ``kafka+offset`` and ``kafka``. ``topic/partition/start-end.arrow`` is a
+    window of ``window_size`` offsets, ``topic/partition.arrow?start=&limit=`` a bounded read,
+    and ``topic.arrow`` the whole topic, in any of the ``.arrow``, ``.parquet``, ``.csv``, and
+    ``.jsonl`` formats. ``metadata`` describes a topic or partition. The other protocols
+    arrange the same messages differently: ``kafka+time`` by timestamp, ``kafka+records``
+    as the latest value of each key, and ``kafka+history`` as every message of each key.
 
     Storage options other than the named arguments are librdkafka properties, for example
     ``fsspec.filesystem("kafka", **{"bootstrap.servers": "localhost:9092"})``. They can also
@@ -45,8 +59,9 @@ class KafkaFileSystem(AbstractFileSystem):
     single binary or string column.
     """
 
-    protocol = ("kafka",)
+    protocol = ("kafka", "kafka+offset")
     root_marker = ""
+    _view = "offset"
 
     def __init__(
         self,
@@ -65,11 +80,14 @@ class KafkaFileSystem(AbstractFileSystem):
         partition_column=None,
         timestamp_column=None,
         headers_column=None,
+        time_bucket="millisecond",
         **storage_options,
     ):
         super().__init__(**{key: storage_options.pop(key) for key in _FSSPEC_OPTIONS & storage_options.keys()})
         self._rust = RustKafkaFs(
             {key: _property(value) for key, value in storage_options.items()},
+            view=self._view,
+            time_bucket=time_bucket,
             timeout=timeout,
             window_size=window_size,
             list_format=list_format,
@@ -94,6 +112,11 @@ class KafkaFileSystem(AbstractFileSystem):
     def info(self, path, **kwargs):
         return self._rust.info(self._strip_protocol(path))
 
+    def metadata(self, path):
+        """Partitions, leaders, replicas, in-sync replicas, and low and high watermarks of a
+        topic or partition, and the configuration of a topic."""
+        return json.loads(self._rust.metadata(self._strip_protocol(path)))
+
     def _open(self, path, mode="rb", block_size=None, autocommit=True, cache_options=None, **kwargs):
         return KafkaFile(self, path, mode, self._rust.open(self._strip_protocol(path), mode))
 
@@ -110,8 +133,8 @@ class KafkaFileSystem(AbstractFileSystem):
         self._rust.mkdir(self._strip_protocol(path))
 
     def makedirs(self, path, exist_ok=False):
-        # Directories inside topic/records exist only while they hold keys, so checking
-        # first lets mappers write without allow_admin.
+        # kafka+records key directories exist only while they hold keys, so checking first
+        # lets mappers write without allow_admin.
         if self.isdir(path):
             if not exist_ok:
                 raise FileExistsError(path)
@@ -131,6 +154,47 @@ class KafkaFileSystem(AbstractFileSystem):
         mapping start at the beginning. Partitions added to the topic later are not followed.
         """
         return KafkaStream(self._rust.stream(self._strip_protocol(path), _stream_start(start)))
+
+
+class KafkaTimeFileSystem(KafkaFileSystem):
+    """Kafka topics arranged by message timestamp, registered as ``kafka+time``.
+
+    ``topic/YYYY/MM/DD/hh/mm/ss/mmm`` nests UTC time buckets, and ``topic/weeks/YYYY-Www``
+    holds ISO weeks. Each bucket is a directory of the next level and, with an extension
+    such as ``topic/2026/11.parquet``, a file of its messages. Buckets at the
+    ``time_bucket`` level (``year``, ``month``, ``day``, ``hour``, ``minute``, ``second``,
+    or the default ``millisecond``) and weeks are listed as files in ``list_format``.
+    Listings cover the time between the topic's first and last messages, so they can
+    include empty buckets. Reads find their offsets in the broker's time index, which
+    assumes timestamps increase with offsets within a partition.
+    """
+
+    protocol = ("kafka+time",)
+    _view = "time"
+
+
+class KafkaRecordsFileSystem(KafkaFileSystem):
+    """The latest value of each key in a compacted topic, registered as ``kafka+records``.
+
+    ``topic/{key...}`` reads, writes, and deletes one key: writing produces a message and
+    deleting produces a tombstone. ``topic.arrow`` holds the latest message of each key.
+    With ``allow_admin=True``, ``mkdir("topic")`` creates a compacted topic without time
+    retention. Topics that are not compacted are refused, since values could age out.
+    """
+
+    protocol = ("kafka+records",)
+    _view = "records"
+
+
+class KafkaHistoryFileSystem(KafkaFileSystem):
+    """Every message of each key, registered as ``kafka+history``.
+
+    ``topic/{key...}`` is a file of the key's retained messages in ``list_format``,
+    including tombstones. Listing keys and reading a key read the whole topic.
+    """
+
+    protocol = ("kafka+history",)
+    _view = "history"
 
 
 def _value_schema(value_format, value_schema):

@@ -28,10 +28,10 @@ def options():
 def topic(options):
     """A compacted single-partition topic holding records a, b and c."""
     name = f"fsspec-kafka-py-{uuid.uuid4().hex}"
-    fs = fsspec.filesystem("kafka", **options, allow_admin=True, partitions=1, skip_instance_cache=True)
-    fs.mkdir(f"{name}/records")
+    fs = fsspec.filesystem("kafka+records", **options, allow_admin=True, partitions=1, skip_instance_cache=True)
+    fs.mkdir(name)
     for key in "abc":
-        fs.pipe_file(f"kafka://{name}/records/{key}", key.encode())
+        fs.pipe_file(f"kafka+records://{name}/{key}", key.encode())
     yield name
     fs.rmdir(name)
 
@@ -70,7 +70,45 @@ def test_lists_topics_partitions_and_windows(options, topic):
     info = fs.info(f"{topic}/0")
     assert info["type"] == "directory"
     assert (info["partition"], info["low"], info["high"]) == ("0", "0", "3")
-    assert fs.ls(topic)[1]["partition"] == "0"
+    assert fs.ls(topic)[0]["partition"] == "0"
+
+
+def test_metadata_describes_topics_and_partitions(options, topic):
+    fs = fsspec.filesystem("kafka", **options)
+    metadata = fs.metadata(f"kafka://{topic}")
+    assert metadata["config"]["cleanup.policy"] == "compact"
+    assert (metadata["partitions"][0]["low"], metadata["partitions"][0]["high"]) == (0, 3)
+    assert fs.metadata(f"{topic}/0") == metadata["partitions"][0]
+
+
+def test_time_buckets_hold_messages_by_timestamp(options, topic):
+    fs = fsspec.filesystem("kafka+time", **options, time_bucket="day")
+    now = datetime.now(UTC)
+    year = f"{topic}/{now:%Y}"
+    assert fs.ls(f"kafka+time://{topic}", detail=False) == [f"{topic}/weeks", year]
+    assert fs.isdir(f"{year}/{now:%m}")
+    with fs.open(f"{year}.arrow") as file:
+        assert pyarrow.ipc.open_stream(file).read_all().column("value").to_pylist() == [b"a", b"b", b"c"]
+    week = fs.ls(f"{topic}/weeks", detail=False)
+    assert week == [f"{topic}/weeks/{now:%G-W%V}.arrow"]
+    assert pd.read_parquet(f"kafka+time://{topic}/weeks/{now:%G-W%V}.parquet", storage_options=options)["key"].tolist() == [b"a", b"b", b"c"]
+
+
+def test_history_keeps_every_message_of_a_key(options, topic):
+    fsspec.filesystem("kafka+records", **options).rm_file(f"{topic}/a")
+    fs = fsspec.filesystem("kafka+history", **options)
+    assert fs.ls(topic, detail=False) == [f"{topic}/a", f"{topic}/b", f"{topic}/c"]
+    with fs.open(f"kafka+history://{topic}/a") as file:
+        table = pyarrow.ipc.open_stream(file).read_all()
+    assert table.column("value").to_pylist() == [b"a", None]
+
+
+def test_records_topics_read_as_their_latest_values(options, topic):
+    fs = fsspec.filesystem("kafka+records", **options)
+    fs.pipe_file(f"{topic}/a", b"a2")
+    fs.rm_file(f"{topic}/b")
+    frame = pd.read_parquet(f"kafka+records://{topic}.parquet", storage_options=options)
+    assert dict(zip(frame["key"], frame["value"], strict=True)) == {b"c": b"c", b"a": b"a2"}
 
 
 def test_reads_windows_with_pyarrow(options, topic):
@@ -94,10 +132,10 @@ def test_reads_topic_snapshots_with_pandas(options, topic):
 
 
 def test_reads_json_values(options, topic):
-    fs = fsspec.filesystem("kafka", **options)
-    fs.pipe_file(f"{topic}/records/d", b'{"id": 1, "name": "d"}')
-    fs.pipe_file(f"{topic}/records/e", b'{\n  "id": 2,\n  "name": "e"\n}\n')
-    fs.rm_file(f"{topic}/records/d")
+    fs = fsspec.filesystem("kafka+records", **options)
+    fs.pipe_file(f"{topic}/d", b'{"id": 1, "name": "d"}')
+    fs.pipe_file(f"{topic}/e", b'{\n  "id": 2,\n  "name": "e"\n}\n')
+    fs.rm_file(f"{topic}/d")
     schema = pa.schema([("id", pa.int64()), ("name", pa.string())])
     path = f"kafka://{topic}/0.parquet?start=3"
 
@@ -223,23 +261,23 @@ def test_confluent_avro_values_resolve_older_versions(options, empty_topic):
 
 
 def test_records_through_open_and_get_mapper(options, topic):
-    with fsspec.open(f"kafka://{topic}/records/d", "wb", **options) as file:
+    with fsspec.open(f"kafka+records://{topic}/d", "wb", **options) as file:
         file.write(b"d")
-    with fsspec.open(f"kafka://{topic}/records/d", "rb", **options) as file:
+    with fsspec.open(f"kafka+records://{topic}/d", "rb", **options) as file:
         assert file.read() == b"d"
 
-    mapper = fsspec.get_mapper(f"kafka://{topic}/records", **options)
+    mapper = fsspec.get_mapper(f"kafka+records://{topic}", **options)
     mapper["ns/e"] = b"e"
     del mapper["a"]
     assert dict(mapper) == {"b": b"b", "c": b"c", "d": b"d", "ns/e": b"e"}
 
 
 def test_failed_writes_are_discarded(options, topic):
-    fs = fsspec.filesystem("kafka", **options)
-    with pytest.raises(RuntimeError), fs.open(f"{topic}/records/a", "wb") as file:
+    fs = fsspec.filesystem("kafka+records", **options)
+    with pytest.raises(RuntimeError), fs.open(f"{topic}/a", "wb") as file:
         file.write(b"partial")
         raise RuntimeError
-    assert fs.cat_file(f"{topic}/records/a") == b"a"
+    assert fs.cat_file(f"{topic}/a") == b"a"
 
 
 def test_topic_admin_needs_allow_admin(options):
@@ -249,43 +287,44 @@ def test_topic_admin_needs_allow_admin(options):
 
 
 def test_missing_paths_raise_file_not_found(options, topic):
-    fs = fsspec.filesystem("kafka", **options)
+    fs = fsspec.filesystem("kafka+records", **options)
     with pytest.raises(FileNotFoundError):
-        fs.cat_file(f"{topic}/records/missing")
+        fs.cat_file(f"{topic}/missing")
     with pytest.raises(FileNotFoundError):
-        fs.info(f"{topic}-missing")
-    assert not fs.exists(f"{topic}/records/missing")
+        fsspec.filesystem("kafka", **options).info(f"{topic}-missing")
+    assert not fs.exists(f"{topic}/missing")
 
 
 def test_files_support_raw_io(options, topic):
-    fs = fsspec.filesystem("kafka", **options)
-    with fs.open(f"{topic}/records/f", "wb") as file:
+    fs = fsspec.filesystem("kafka+records", **options)
+    with fs.open(f"{topic}/f", "wb") as file:
         assert file.writable() and not file.seekable()
         file.write(memoryview(b"value"))
     file.discard()  # already closed, so the value stays committed
-    with fs.open(f"{topic}/records/f") as file:
+    with fs.open(f"{topic}/f") as file:
         buffer = bytearray(2)
         assert file.readinto(buffer) == 2 and buffer == b"va"
         assert file.tell() == 2
         assert file.readall() == b"lue"
     with pytest.raises(FileExistsError):
-        fs.makedirs(f"{topic}/records")
+        fs.makedirs(topic)
 
 
 def test_streams_follow_new_messages_and_resume(options, topic):
     fs = fsspec.filesystem("kafka", **options)
+    records = fsspec.filesystem("kafka+records", **options)
     with fs.stream(f"kafka://{topic}") as stream:
         assert stream.positions == {0: 3}
         assert stream.poll(timeout=0.5) is None
         # Produce while iteration is already waiting.
-        threading.Timer(0.5, fs.pipe_file, (f"{topic}/records/d", b"d")).start()
+        threading.Timer(0.5, records.pipe_file, (f"{topic}/d", b"d")).start()
         batch = next(iter(stream))
         assert batch.column("value").to_pylist() == [b"d"]
         assert batch.schema.names == ["topic", "partition", "offset", "timestamp", "key", "headers", "value"]
         saved = json.loads(json.dumps(stream.positions))
     assert stream.closed
 
-    fs.pipe_file(f"{topic}/records/e", b"e")
+    records.pipe_file(f"{topic}/e", b"e")
     with fs.stream(f"{topic}/0", start=saved) as stream:
         assert stream.poll(timeout=10).column("value").to_pylist() == [b"e"]
 

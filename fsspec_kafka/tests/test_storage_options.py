@@ -5,14 +5,27 @@ import fsspec
 import pyarrow as pa
 import pytest
 
-from fsspec_kafka import KafkaFileSystem
+from fsspec_kafka import KafkaFileSystem, KafkaHistoryFileSystem, KafkaRecordsFileSystem, KafkaTimeFileSystem
 
 # Nothing listens here; librdkafka connects only when a request is made.
 OPTIONS = {"bootstrap.servers": "127.0.0.1:1", "skip_instance_cache": True}
 
 
-def test_kafka_protocol_is_registered():
-    assert fsspec.get_filesystem_class("kafka") is KafkaFileSystem
+@pytest.mark.parametrize(
+    ("protocol", "cls"),
+    [
+        ("kafka", KafkaFileSystem),
+        ("kafka+offset", KafkaFileSystem),
+        ("kafka+time", KafkaTimeFileSystem),
+        ("kafka+records", KafkaRecordsFileSystem),
+        ("kafka+history", KafkaHistoryFileSystem),
+    ],
+)
+def test_kafka_protocols_are_registered(protocol, cls):
+    assert fsspec.get_filesystem_class(protocol) is cls
+    fs, path = fsspec.core.url_to_fs(f"{protocol}://orders/2026", **OPTIONS)
+    assert type(fs) is cls
+    assert path == "orders/2026"
 
 
 def test_storage_options_are_librdkafka_properties():
@@ -30,6 +43,8 @@ def test_invalid_options_are_rejected():
         KafkaFileSystem(**OPTIONS, list_format="xlsx")
     with pytest.raises(ValueError):
         KafkaFileSystem(**OPTIONS, window_size=0)
+    with pytest.raises(ValueError, match="time_bucket"):
+        KafkaTimeFileSystem(**OPTIONS, time_bucket="week")
 
 
 @pytest.mark.parametrize(

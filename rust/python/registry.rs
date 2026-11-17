@@ -10,8 +10,11 @@ pub const LINKED_TO_LIBFSSPEC: bool = cfg!(feature = "capi");
 pub fn register() -> PyResult<()> {
     #[cfg(feature = "capi")]
     fsspec_sys::use_shared_registry();
-    fsspec_rs::try_register_filesystem("kafka", ::fsspec_kafka::KafkaFsFactory)
-        .map_err(|e| PyRuntimeError::new_err(e.to_string()))
+    for (protocol, view) in ::fsspec_kafka::PROTOCOLS {
+        fsspec_rs::try_register_filesystem(protocol, ::fsspec_kafka::KafkaFsFactory(view))
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+    }
+    Ok(())
 }
 
 /// Whether this extension registered its protocols in the shared `libfsspec`.
