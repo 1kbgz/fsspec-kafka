@@ -208,11 +208,14 @@ fn finds_offsets_by_time() {
 fn reads_time_buckets() {
     let Some(bootstrap) = bootstrap() else { return };
     let topic = Topic::create(&bootstrap, 1, 0);
-    let start = SystemTime::now()
+    // Start on a minute boundary so all five messages fall in the same minute.
+    let start = (SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_millis() as i64
-        - 3_600_000;
+        - 3_600_000)
+        / 60_000
+        * 60_000;
     for index in 0..5 {
         topic
             .producer
