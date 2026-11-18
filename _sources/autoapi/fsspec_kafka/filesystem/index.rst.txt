@@ -22,7 +22,7 @@ Module Contents
 
 .. py:class:: KafkaFileSystem(timeout=10.0, window_size=10000, list_format='arrow', batch_size=1024, allow_admin=False, partitions=-1, replication=-1, topic_config=None, value_format='binary', value_schema=None, flatten_value=False, key_column=None, partition_column=None, timestamp_column=None, headers_column=None, time_bucket='millisecond', **storage_options)
 
-   Bases: :py:obj:`fsspec.AbstractFileSystem`
+   Bases: :py:obj:`fsspec_kafka.describe.KafkaDataSource`
 
 
    Kafka topics as an fsspec filesystem, with partitions of fixed offset windows.
@@ -33,6 +33,9 @@ Module Contents
    ``.jsonl`` formats. ``metadata`` describes a topic or partition. The other protocols
    arrange the same messages differently: ``kafka+time`` by timestamp, ``kafka+records``
    as the latest value of each key, and ``kafka+history`` as every message of each key.
+
+   Each filesystem is an fsspec-data ``DataSource``, so ``dataview::kafka+time://...``
+   renders its topics, partitions, buckets, and keys as Parquet, CSV, and JSON files.
 
    Storage options other than the named arguments are librdkafka properties, for example
    ``fsspec.filesystem("kafka", **{"bootstrap.servers": "localhost:9092"})``. They can also
@@ -156,13 +159,6 @@ Module Contents
 
       :returns: * **dict with keys** (*name (full path in the FS), size (in bytes), type (file,*)
                 * *directory, or something else) and other FS-specific keys.*
-
-
-
-   .. py:method:: metadata(path)
-
-      Partitions, leaders, replicas, in-sync replicas, and low and high watermarks of a
-      topic or partition, and the configuration of a topic.
 
 
 

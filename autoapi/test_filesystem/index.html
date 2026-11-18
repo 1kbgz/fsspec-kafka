@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>test_filesystem &#8212; fsspec-kafka v0.2.0</title>
+    <title>test_filesystem &#8212; fsspec-kafka v0.3.0</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
     <link rel="stylesheet" type="text/css" href="../../_static/fuma.css?v=ca04d621" />
     <link rel="stylesheet" type="text/css" href="../../_static/fuma-code.css?v=a950e949" />
@@ -16,7 +16,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=6a604523" />
     <link rel="stylesheet" type="text/css" href="../../_static/fonts/fuma-fonts.css?v=c2892c73" />
     <link rel="stylesheet" type="text/css" href="../../_static/styles/custom.css?v=88c24c6a" />
-    <script src="../../_static/documentation_options.js?v=938c9ccc"></script>
+    <script src="../../_static/documentation_options.js?v=e259d695"></script>
     <script src="../../_static/doctools.js?v=9bcbadda"></script>
     <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -28,7 +28,7 @@
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
     <link rel="next" title="test_storage_options" href="../test_storage_options/index.html" />
-    <link rel="prev" title="test_registry" href="../test_registry/index.html" />
+    <link rel="prev" title="test_describe" href="../test_describe/index.html" />
     <script>
       (function () {
         var root = document.documentElement;
@@ -49,7 +49,7 @@
   <div class="fd-subnav-inner">
     <button type="button" class="fd-icon-button fd-sidebar-toggle" aria-controls="fd-sidebar" aria-expanded="false" aria-label="Toggle navigation" title="Toggle navigation">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="fd-icon "><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
-    </button><a class="fd-brand" href="../../index.html"><span class="fd-brand-name">fsspec-kafka v0.2.0</span>
+    </button><a class="fd-brand" href="../../index.html"><span class="fd-brand-name">fsspec-kafka v0.3.0</span>
 </a>
 
     <div class="fd-nav-actions">
@@ -64,7 +64,7 @@
 
 <aside id="fd-sidebar" aria-label="Documentation">
   <div class="fd-sidebar-header">
-    <div class="fd-sidebar-brand-row"><a class="fd-brand" href="../../index.html"><span class="fd-brand-name">fsspec-kafka v0.2.0</span>
+    <div class="fd-sidebar-brand-row"><a class="fd-brand" href="../../index.html"><span class="fd-brand-name">fsspec-kafka v0.3.0</span>
 </a>
       <button type="button" class="fd-icon-button fd-sidebar-collapse" aria-label="Collapse sidebar" title="Collapse sidebar"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="fd-icon "><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg></button>
     </div>
@@ -103,6 +103,11 @@
       
 <ul class="fd-tree">
   <li class="fd-tree-item">
+    <a class="fd-link" href="../fsspec_kafka/describe/index.html">
+      <span class="fd-link-text">fsspec_kafka.describe</span>
+    </a>
+  </li>
+  <li class="fd-tree-item">
     <a class="fd-link" href="../fsspec_kafka/filesystem/index.html">
       <span class="fd-link-text">fsspec_kafka.filesystem</span>
     </a>
@@ -123,6 +128,11 @@
   <li class="fd-tree-item">
     <a class="fd-link" href="../test_registry/index.html">
       <span class="fd-link-text">test_registry</span>
+    </a>
+  </li>
+  <li class="fd-tree-item">
+    <a class="fd-link" href="../test_describe/index.html">
+      <span class="fd-link-text">test_describe</span>
     </a>
   </li>
   <li class="fd-tree-item">
@@ -263,6 +273,9 @@
   <li class="fd-toc-item" data-depth="2">
     <a href="#test_filesystem.test_streams_follow_new_messages_and_resume">test_streams_follow_new_messages_and_resume()</a>
   </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.test_data_views_render_every_protocol">test_data_views_render_every_protocol()</a>
+  </li>
 </ul>
 </div>
   </div>
@@ -380,6 +393,9 @@
 <td><p></p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#test_filesystem.test_streams_follow_new_messages_and_resume" title="test_filesystem.test_streams_follow_new_messages_and_resume"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_streams_follow_new_messages_and_resume</span></code></a>(options, topic)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#test_filesystem.test_data_views_render_every_protocol" title="test_filesystem.test_data_views_render_every_protocol"><code class="xref py py-obj docutils literal notranslate"><span class="pre">test_data_views_render_every_protocol</span></code></a>(options, topic)</p></td>
 <td><p></p></td>
 </tr>
 </tbody>
@@ -538,17 +554,22 @@
 <span class="sig-prename descclassname"><span class="pre">test_filesystem.</span></span><span class="sig-name descname"><span class="pre">test_streams_follow_new_messages_and_resume</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topic</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#test_filesystem.test_streams_follow_new_messages_and_resume" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
+<dl class="py function">
+<dt class="sig sig-object py" id="test_filesystem.test_data_views_render_every_protocol">
+<span class="sig-prename descclassname"><span class="pre">test_filesystem.</span></span><span class="sig-name descname"><span class="pre">test_data_views_render_every_protocol</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">options</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topic</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#test_filesystem.test_data_views_render_every_protocol" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
 </section>
 </section>
 
 
       </div>
 <nav class="fd-pagination" aria-label="Pagination">
-  <a class="fd-pagination-card fd-pagination-prev" href="../test_registry/index.html" title="Previous: test_registry">
+  <a class="fd-pagination-card fd-pagination-prev" href="../test_describe/index.html" title="Previous: test_describe">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="fd-icon "><path d="m15 18-6-6 6-6"/></svg>
     <span class="fd-pagination-text">
       <span class="fd-pagination-label">Previous</span>
-      <span class="fd-pagination-title">test_registry</span>
+      <span class="fd-pagination-title">test_describe</span>
     </span>
   </a>
   <a class="fd-pagination-card fd-pagination-next" href="../test_storage_options/index.html" title="Next: test_storage_options">
@@ -672,6 +693,9 @@
   </li>
   <li class="fd-toc-item" data-depth="2">
     <a href="#test_filesystem.test_streams_follow_new_messages_and_resume">test_streams_follow_new_messages_and_resume()</a>
+  </li>
+  <li class="fd-toc-item" data-depth="2">
+    <a href="#test_filesystem.test_data_views_render_every_protocol">test_data_views_render_every_protocol()</a>
   </li>
 </ul>
 

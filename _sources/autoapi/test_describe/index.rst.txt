@@ -1,0 +1,188 @@
+test_describe
+=============
+
+.. py:module:: test_describe
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   test_describe.MESSAGES
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   test_describe._Rust
+   test_describe.FakeKafka
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   test_describe._arrow
+   test_describe.fs
+   test_describe.test_nodes_follow_the_kind_of_each_entry
+   test_describe.test_tables_read_the_arrow_encoding_of_each_node
+   test_describe.test_metadata_adds_topic_and_partition_details_to_the_entry
+   test_describe.test_data_views_render_kafka_nodes_as_files
+
+
+Module Contents
+---------------
+
+.. py:data:: MESSAGES
+
+.. py:function:: _arrow(table)
+
+.. py:class:: _Rust
+
+   .. py:method:: metadata(path)
+
+
+.. py:class:: FakeKafka
+
+   Bases: :py:obj:`fsspec_kafka.describe.KafkaDataSource`
+
+
+   Listings and Arrow files shaped like the Kafka filesystems.
+
+   Create and configure file-system instance
+
+   Instances may be cachable, so if similar enough arguments are seen
+   a new instance is not required. The token attribute exists to allow
+   implementations to cache instances if they wish.
+
+   A reasonable default should be provided if there are no arguments.
+
+   Subclasses should call this method.
+
+   :param use_listings_cache: passed to ``DirCache``, if the implementation supports
+                              directory listing caching. Pass use_listings_cache=False
+                              to disable such caching.
+   :param listings_expiry_time: passed to ``DirCache``, if the implementation supports
+                                directory listing caching. Pass use_listings_cache=False
+                                to disable such caching.
+   :param max_paths: passed to ``DirCache``, if the implementation supports
+                     directory listing caching. Pass use_listings_cache=False
+                     to disable such caching.
+   :param skip_instance_cache: If this is a cachable implementation, pass True here to force
+                               creating a new instance even if a matching instance exists, and prevent
+                               storing this instance.
+   :type skip_instance_cache: bool
+   :param asynchronous:
+   :type asynchronous: bool
+   :param loop:
+   :type loop: asyncio-compatible IOLoop or None
+
+
+   .. py:attribute:: protocol
+      :value: 'fake'
+
+
+
+   .. py:attribute:: root_marker
+      :value: ''
+
+
+
+   .. py:attribute:: cachable
+      :value: False
+
+
+
+   .. py:attribute:: entries
+      :type:  ClassVar[dict[str, dict]]
+
+
+   .. py:attribute:: children_of
+      :type:  ClassVar[dict[str, list[str]]]
+
+
+   .. py:attribute:: _rust
+
+
+   .. py:attribute:: opened
+      :value: []
+
+
+
+   .. py:method:: info(path, **kwargs)
+
+      Give details of entry at path
+
+      Returns a single dictionary, with exactly the same information as ``ls``
+      would with ``detail=True``.
+
+      The default implementation calls ls and could be overridden by a
+      shortcut. kwargs are passed on to ```ls()``.
+
+      Some file systems might not be able to measure the file's size, in
+      which case, the returned dict will include ``'size': None``.
+
+      :returns: * **dict with keys** (*name (full path in the FS), size (in bytes), type (file,*)
+                * *directory, or something else) and other FS-specific keys.*
+
+
+
+   .. py:method:: ls(path, detail=True, **kwargs)
+
+      List objects at path.
+
+      This should include subdirectories and files at that location. The
+      difference between a file and a directory must be clear when details
+      are requested.
+
+      The specific keys, or perhaps a FileInfo class, or similar, is TBD,
+      but must be consistent across implementations.
+      Must include:
+
+      - full path to the entry (without protocol)
+      - size of the entry, in bytes. If the value cannot be determined, will
+        be ``None``.
+      - type of entry, "file", "directory" or other
+
+      Additional information
+      may be present, appropriate to the file-system, e.g., generation,
+      checksum, etc.
+
+      May use refresh=True|False to allow use of self._ls_from_cache to
+      check for a saved listing and avoid calling the backend. This would be
+      common where listing may be expensive.
+
+      :param path:
+      :type path: str
+      :param detail: if True, gives a list of dictionaries, where each is the same as
+                     the result of ``info(path)``. If False, gives a list of paths
+                     (str).
+      :type detail: bool
+      :param kwargs: information
+      :type kwargs: may have additional backend-specific options, such as version
+
+      :returns: * *List of strings if detail is False, or list of directory information*
+                * *dicts if detail is True.*
+
+
+
+   .. py:method:: _open(path, mode='rb', block_size=None, autocommit=True, cache_options=None, **kwargs)
+
+      Return raw bytes-mode file-like from the file-system
+
+
+
+.. py:function:: fs()
+
+.. py:function:: test_nodes_follow_the_kind_of_each_entry(fs)
+
+.. py:function:: test_tables_read_the_arrow_encoding_of_each_node(fs)
+
+.. py:function:: test_metadata_adds_topic_and_partition_details_to_the_entry(fs)
+
+.. py:function:: test_data_views_render_kafka_nodes_as_files(fs)
+

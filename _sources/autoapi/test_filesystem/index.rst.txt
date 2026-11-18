@@ -46,6 +46,7 @@ Functions
    test_filesystem.test_missing_paths_raise_file_not_found
    test_filesystem.test_files_support_raw_io
    test_filesystem.test_streams_follow_new_messages_and_resume
+   test_filesystem.test_data_views_render_every_protocol
 
 
 Module Contents
@@ -113,4 +114,6 @@ Module Contents
 .. py:function:: test_files_support_raw_io(options, topic)
 
 .. py:function:: test_streams_follow_new_messages_and_resume(options, topic)
+
+.. py:function:: test_data_views_render_every_protocol(options, topic)
 

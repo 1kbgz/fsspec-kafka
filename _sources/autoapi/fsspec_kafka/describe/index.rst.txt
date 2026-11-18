@@ -1,0 +1,130 @@
+fsspec_kafka.describe
+=====================
+
+.. py:module:: fsspec_kafka.describe
+
+.. autoapi-nested-parse::
+
+   Describes Kafka filesystems to fsspec-data, so a data view can render topics, partitions,
+   time buckets, and keys as files.
+
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   fsspec_kafka.describe._INFO_FIELDS
+   fsspec_kafka.describe._TABLE_DIRS
+   fsspec_kafka.describe._MESSAGE_FILES
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   fsspec_kafka.describe.KafkaDataSource
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   fsspec_kafka.describe._node
+
+
+Module Contents
+---------------
+
+.. py:data:: _INFO_FIELDS
+
+.. py:data:: _TABLE_DIRS
+
+.. py:data:: _MESSAGE_FILES
+
+.. py:class:: KafkaDataSource(*args, **storage_options)
+
+   Bases: :py:obj:`fsspec_data.DataSource`, :py:obj:`fsspec.AbstractFileSystem`
+
+
+   ``DataSource`` for the Kafka filesystems, built from the ``kind`` each ``info`` entry
+   reports. Topics, partitions, and time buckets are containers whose messages also read as
+   a table. Windows and leaf time buckets are tables whose raw bytes are their listed
+   encoding. Records are raw values. ``kafka+history`` keys are tables of their messages
+   when ``list_format`` is ``arrow``, and otherwise raw bytes in that format. Topics and
+   partitions add their configuration, replicas, and watermarks to their metadata.
+
+   Create and configure file-system instance
+
+   Instances may be cachable, so if similar enough arguments are seen
+   a new instance is not required. The token attribute exists to allow
+   implementations to cache instances if they wish.
+
+   A reasonable default should be provided if there are no arguments.
+
+   Subclasses should call this method.
+
+   :param use_listings_cache: passed to ``DirCache``, if the implementation supports
+                              directory listing caching. Pass use_listings_cache=False
+                              to disable such caching.
+   :param listings_expiry_time: passed to ``DirCache``, if the implementation supports
+                                directory listing caching. Pass use_listings_cache=False
+                                to disable such caching.
+   :param max_paths: passed to ``DirCache``, if the implementation supports
+                     directory listing caching. Pass use_listings_cache=False
+                     to disable such caching.
+   :param skip_instance_cache: If this is a cachable implementation, pass True here to force
+                               creating a new instance even if a matching instance exists, and prevent
+                               storing this instance.
+   :type skip_instance_cache: bool
+   :param asynchronous:
+   :type asynchronous: bool
+   :param loop:
+   :type loop: asyncio-compatible IOLoop or None
+
+
+   .. py:attribute:: _rust
+      :type:  Any
+
+
+   .. py:method:: describe(path: str) -> fsspec_data.Node
+
+      Describes the node at ``path``, including paths that no listing returns.
+
+
+
+   .. py:method:: children(path: str) -> list[fsspec_data.Node]
+
+      The children of a container. Encoded aliases of other nodes are left out, so a
+      view does not show the same rows twice.
+
+
+
+   .. py:method:: schema(path: str) -> pyarrow.Schema
+
+
+   .. py:method:: scan(path: str, *, batch_size: int = 1024, row_limit: int | None = None, byte_limit: int | None = None) -> pyarrow.RecordBatchReader
+
+
+   .. py:method:: open_raw(path: str) -> BinaryIO
+
+
+   .. py:method:: metadata(path: str) -> dict[str, Any]
+
+      The ``info`` fields of ``path``. A topic adds its configuration and each partition's
+      leader, replicas, in-sync replicas, and low and high watermarks; a partition adds its
+      own.
+
+
+
+   .. py:method:: _open_table(path: str) -> BinaryIO
+
+      Opens the Arrow encoding of the messages behind ``path``.
+
+
+
+.. py:function:: _node(info: dict[str, Any]) -> fsspec_data.Node
+

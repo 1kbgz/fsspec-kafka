@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>fsspec_kafka.filesystem &#8212; fsspec-kafka v0.2.0</title>
+    <title>fsspec_kafka.filesystem &#8212; fsspec-kafka v0.3.0</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
     <link rel="stylesheet" type="text/css" href="../../_static/fuma.css?v=ca04d621" />
     <link rel="stylesheet" type="text/css" href="../../_static/fuma-code.css?v=a950e949" />
@@ -15,7 +15,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=6a604523" />
     <link rel="stylesheet" type="text/css" href="../../_static/fonts/fuma-fonts.css?v=c2892c73" />
     <link rel="stylesheet" type="text/css" href="../../_static/styles/custom.css?v=88c24c6a" />
-    <script src="../../_static/documentation_options.js?v=938c9ccc"></script>
+    <script src="../../_static/documentation_options.js?v=e259d695"></script>
     <script src="../../_static/doctools.js?v=9bcbadda"></script>
     <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -453,7 +453,7 @@ window.runMermaid = runMermaid;</script>
   <div class="fd-subnav-inner">
     <button type="button" class="fd-icon-button fd-sidebar-toggle" aria-controls="fd-sidebar" aria-expanded="false" aria-label="Toggle navigation" title="Toggle navigation">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="fd-icon "><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
-    </button><a class="fd-brand" href="../../index.html"><span class="fd-brand-name">fsspec-kafka v0.2.0</span>
+    </button><a class="fd-brand" href="../../index.html"><span class="fd-brand-name">fsspec-kafka v0.3.0</span>
 </a>
 
     <div class="fd-nav-actions">
@@ -468,7 +468,7 @@ window.runMermaid = runMermaid;</script>
 
 <aside id="fd-sidebar" aria-label="Documentation">
   <div class="fd-sidebar-header">
-    <div class="fd-sidebar-brand-row"><a class="fd-brand" href="../../index.html"><span class="fd-brand-name">fsspec-kafka v0.2.0</span>
+    <div class="fd-sidebar-brand-row"><a class="fd-brand" href="../../index.html"><span class="fd-brand-name">fsspec-kafka v0.3.0</span>
 </a>
       <button type="button" class="fd-icon-button fd-sidebar-collapse" aria-label="Collapse sidebar" title="Collapse sidebar"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="fd-icon "><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg></button>
     </div>
@@ -507,6 +507,11 @@ window.runMermaid = runMermaid;</script>
       
 <ul class="fd-tree">
   <li class="fd-tree-item">
+    <a class="fd-link" href="../../autoapi/fsspec_kafka/describe/index.html">
+      <span class="fd-link-text">fsspec_kafka.describe</span>
+    </a>
+  </li>
+  <li class="fd-tree-item">
     <a class="fd-link" href="../../autoapi/fsspec_kafka/filesystem/index.html">
       <span class="fd-link-text">fsspec_kafka.filesystem</span>
     </a>
@@ -527,6 +532,11 @@ window.runMermaid = runMermaid;</script>
   <li class="fd-tree-item">
     <a class="fd-link" href="../../autoapi/test_registry/index.html">
       <span class="fd-link-text">test_registry</span>
+    </a>
+  </li>
+  <li class="fd-tree-item">
+    <a class="fd-link" href="../../autoapi/test_describe/index.html">
+      <span class="fd-link-text">test_describe</span>
     </a>
   </li>
   <li class="fd-tree-item">
@@ -583,8 +593,8 @@ window.runMermaid = runMermaid;</script>
 <span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">fsspec</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">fsspec</span><span class="w"> </span><span class="kn">import</span> <span class="n">AbstractFileSystem</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">.describe</span><span class="w"> </span><span class="kn">import</span> <span class="n">KafkaDataSource</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.fsspec_kafka</span><span class="w"> </span><span class="kn">import</span> <span class="n">RustKafkaFs</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">(</span>
@@ -608,7 +618,7 @@ window.runMermaid = runMermaid;</script>
 
 <div class="viewcode-block" id="KafkaFileSystem">
 <a class="viewcode-back" href="../../autoapi/fsspec_kafka/index.html#fsspec_kafka.filesystem.KafkaFileSystem">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">KafkaFileSystem</span><span class="p">(</span><span class="n">AbstractFileSystem</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">KafkaFileSystem</span><span class="p">(</span><span class="n">KafkaDataSource</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Kafka topics as an fsspec filesystem, with partitions of fixed offset windows.</span>
 
 <span class="sd">    Registered as ``kafka+offset`` and ``kafka``. ``topic/partition/start-end.arrow`` is a</span>
@@ -617,6 +627,9 @@ window.runMermaid = runMermaid;</script>
 <span class="sd">    ``.jsonl`` formats. ``metadata`` describes a topic or partition. The other protocols</span>
 <span class="sd">    arrange the same messages differently: ``kafka+time`` by timestamp, ``kafka+records``</span>
 <span class="sd">    as the latest value of each key, and ``kafka+history`` as every message of each key.</span>
+
+<span class="sd">    Each filesystem is an fsspec-data ``DataSource``, so ``dataview::kafka+time://...``</span>
+<span class="sd">    renders its topics, partitions, buckets, and keys as Parquet, CSV, and JSON files.</span>
 
 <span class="sd">    Storage options other than the named arguments are librdkafka properties, for example</span>
 <span class="sd">    ``fsspec.filesystem("kafka", **{"bootstrap.servers": "localhost:9092"})``. They can also</span>
@@ -697,14 +710,6 @@ window.runMermaid = runMermaid;</script>
 <a class="viewcode-back" href="../../autoapi/fsspec_kafka/index.html#fsspec_kafka.filesystem.KafkaFileSystem.info">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">info</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rust</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_strip_protocol</span><span class="p">(</span><span class="n">path</span><span class="p">))</span></div>
-
-
-<div class="viewcode-block" id="KafkaFileSystem.metadata">
-<a class="viewcode-back" href="../../autoapi/fsspec_kafka/index.html#fsspec_kafka.filesystem.KafkaFileSystem.metadata">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">metadata</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">"""Partitions, leaders, replicas, in-sync replicas, and low and high watermarks of a</span>
-<span class="sd">        topic or partition, and the configuration of a topic."""</span>
-        <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rust</span><span class="o">.</span><span class="n">metadata</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_strip_protocol</span><span class="p">(</span><span class="n">path</span><span class="p">)))</span></div>
 
 
 <div class="viewcode-block" id="KafkaFileSystem.offsets_for_time">

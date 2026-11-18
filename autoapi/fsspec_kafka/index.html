@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>fsspec_kafka &#8212; fsspec-kafka v0.2.0</title>
+    <title>fsspec_kafka &#8212; fsspec-kafka v0.3.0</title>
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
     <link rel="stylesheet" type="text/css" href="../../_static/fuma.css?v=ca04d621" />
     <link rel="stylesheet" type="text/css" href="../../_static/fuma-code.css?v=a950e949" />
@@ -16,7 +16,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=6a604523" />
     <link rel="stylesheet" type="text/css" href="../../_static/fonts/fuma-fonts.css?v=c2892c73" />
     <link rel="stylesheet" type="text/css" href="../../_static/styles/custom.css?v=88c24c6a" />
-    <script src="../../_static/documentation_options.js?v=938c9ccc"></script>
+    <script src="../../_static/documentation_options.js?v=e259d695"></script>
     <script src="../../_static/doctools.js?v=9bcbadda"></script>
     <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -27,7 +27,7 @@
     <script src="../../_static/js/custom.js?v=956e5d78"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="fsspec_kafka.filesystem" href="filesystem/index.html" />
+    <link rel="next" title="fsspec_kafka.describe" href="describe/index.html" />
     <link rel="prev" title="test_all" href="../test_all/index.html" />
     <script>
       (function () {
@@ -49,7 +49,7 @@
   <div class="fd-subnav-inner">
     <button type="button" class="fd-icon-button fd-sidebar-toggle" aria-controls="fd-sidebar" aria-expanded="false" aria-label="Toggle navigation" title="Toggle navigation">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="fd-icon "><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
-    </button><a class="fd-brand" href="../../index.html"><span class="fd-brand-name">fsspec-kafka v0.2.0</span>
+    </button><a class="fd-brand" href="../../index.html"><span class="fd-brand-name">fsspec-kafka v0.3.0</span>
 </a>
 
     <div class="fd-nav-actions">
@@ -64,7 +64,7 @@
 
 <aside id="fd-sidebar" aria-label="Documentation">
   <div class="fd-sidebar-header">
-    <div class="fd-sidebar-brand-row"><a class="fd-brand" href="../../index.html"><span class="fd-brand-name">fsspec-kafka v0.2.0</span>
+    <div class="fd-sidebar-brand-row"><a class="fd-brand" href="../../index.html"><span class="fd-brand-name">fsspec-kafka v0.3.0</span>
 </a>
       <button type="button" class="fd-icon-button fd-sidebar-collapse" aria-label="Collapse sidebar" title="Collapse sidebar"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="fd-icon "><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg></button>
     </div>
@@ -103,6 +103,11 @@
       
 <ul class="fd-tree">
   <li class="fd-tree-item">
+    <a class="fd-link" href="describe/index.html">
+      <span class="fd-link-text">fsspec_kafka.describe</span>
+    </a>
+  </li>
+  <li class="fd-tree-item">
     <a class="fd-link" href="filesystem/index.html">
       <span class="fd-link-text">fsspec_kafka.filesystem</span>
     </a>
@@ -123,6 +128,11 @@
   <li class="fd-tree-item">
     <a class="fd-link" href="../test_registry/index.html">
       <span class="fd-link-text">test_registry</span>
+    </a>
+  </li>
+  <li class="fd-tree-item">
+    <a class="fd-link" href="../test_describe/index.html">
+      <span class="fd-link-text">test_describe</span>
     </a>
   </li>
   <li class="fd-tree-item">
@@ -252,9 +262,6 @@
     <a href="#fsspec_kafka.KafkaFileSystem.info">KafkaFileSystem.info()</a>
   </li>
   <li class="fd-toc-item" data-depth="3">
-    <a href="#fsspec_kafka.KafkaFileSystem.metadata">KafkaFileSystem.metadata()</a>
-  </li>
-  <li class="fd-toc-item" data-depth="3">
     <a href="#fsspec_kafka.KafkaFileSystem.offsets_for_time">KafkaFileSystem.offsets_for_time()</a>
   </li>
   <li class="fd-toc-item" data-depth="3">
@@ -375,6 +382,7 @@
 <h2>Submodules<a class="headerlink" href="#submodules" title="Link to this heading">¶</a></h2>
 <div class="toctree-wrapper compound">
 <ul>
+<li class="toctree-l1"><a class="reference internal" href="describe/index.html">fsspec_kafka.describe</a></li>
 <li class="toctree-l1"><a class="reference internal" href="filesystem/index.html">fsspec_kafka.filesystem</a></li>
 <li class="toctree-l1"><a class="reference internal" href="fsspec_kafka/index.html">fsspec_kafka.fsspec_kafka</a></li>
 </ul>
@@ -554,7 +562,7 @@ Values for whence are:</p>
 <dl class="py class">
 <dt class="sig sig-object py" id="fsspec_kafka.KafkaFileSystem">
 <em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">fsspec_kafka.</span></span><span class="sig-name descname"><span class="pre">KafkaFileSystem</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">list_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'arrow'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batch_size</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1024</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">allow_admin</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">partitions</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">replication</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">topic_config</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_format</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'binary'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value_schema</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flatten_value</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">key_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">partition_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timestamp_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">headers_column</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_bucket</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'millisecond'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">storage_options</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFileSystem"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem" title="Link to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-obj docutils literal notranslate"><span class="pre">fsspec.AbstractFileSystem</span></code></p>
+<dd><p>Bases: <a class="reference internal" href="describe/index.html#fsspec_kafka.describe.KafkaDataSource" title="fsspec_kafka.describe.KafkaDataSource"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fsspec_kafka.describe.KafkaDataSource</span></code></a></p>
 <p>Kafka topics as an fsspec filesystem, with partitions of fixed offset windows.</p>
 <p>Registered as <code class="docutils literal notranslate"><span class="pre">kafka+offset</span></code> and <code class="docutils literal notranslate"><span class="pre">kafka</span></code>. <code class="docutils literal notranslate"><span class="pre">topic/partition/start-end.arrow</span></code> is a
 window of <code class="docutils literal notranslate"><span class="pre">window_size</span></code> offsets, <code class="docutils literal notranslate"><span class="pre">topic/partition.arrow?start=&amp;limit=</span></code> a bounded read,
@@ -562,6 +570,8 @@ and <code class="docutils literal notranslate"><span class="pre">topic.arrow</sp
 <code class="docutils literal notranslate"><span class="pre">.jsonl</span></code> formats. <code class="docutils literal notranslate"><span class="pre">metadata</span></code> describes a topic or partition. The other protocols
 arrange the same messages differently: <code class="docutils literal notranslate"><span class="pre">kafka+time</span></code> by timestamp, <code class="docutils literal notranslate"><span class="pre">kafka+records</span></code>
 as the latest value of each key, and <code class="docutils literal notranslate"><span class="pre">kafka+history</span></code> as every message of each key.</p>
+<p>Each filesystem is an fsspec-data <code class="docutils literal notranslate"><span class="pre">DataSource</span></code>, so <code class="docutils literal notranslate"><span class="pre">dataview::kafka+time://...</span></code>
+renders its topics, partitions, buckets, and keys as Parquet, CSV, and JSON files.</p>
 <p>Storage options other than the named arguments are librdkafka properties, for example
 <code class="docutils literal notranslate"><span class="pre">fsspec.filesystem(&quot;kafka&quot;,</span> <span class="pre">**{&quot;bootstrap.servers&quot;:</span> <span class="pre">&quot;localhost:9092&quot;})</span></code>. They can also
 come from fsspec configuration, such as <code class="docutils literal notranslate"><span class="pre">FSSPEC_KAFKA='{&quot;bootstrap.servers&quot;:</span> <span class="pre">&quot;...&quot;}'</span></code>.</p>
@@ -687,13 +697,6 @@ which case, the returned dict will include <code class="docutils literal notrans
 </p>
 </dd>
 </dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="fsspec_kafka.KafkaFileSystem.metadata">
-<span class="sig-name descname"><span class="pre">metadata</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/fsspec_kafka/filesystem.html#KafkaFileSystem.metadata"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#fsspec_kafka.KafkaFileSystem.metadata" title="Link to this definition">¶</a></dt>
-<dd><p>Partitions, leaders, replicas, in-sync replicas, and low and high watermarks of a
-topic or partition, and the configuration of a topic.</p>
 </dd></dl>
 
 <dl class="py method">
@@ -1032,10 +1035,10 @@ storing this instance.</p></li>
       <span class="fd-pagination-title">test_all</span>
     </span>
   </a>
-  <a class="fd-pagination-card fd-pagination-next" href="filesystem/index.html" title="Next: fsspec_kafka.filesystem">
+  <a class="fd-pagination-card fd-pagination-next" href="describe/index.html" title="Next: fsspec_kafka.describe">
     <span class="fd-pagination-text">
       <span class="fd-pagination-label">Next</span>
-      <span class="fd-pagination-title">fsspec_kafka.filesystem</span>
+      <span class="fd-pagination-title">fsspec_kafka.describe</span>
     </span>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="fd-icon "><path d="m9 18 6-6-6-6"/></svg>
   </a>
@@ -1141,9 +1144,6 @@ storing this instance.</p></li>
   </li>
   <li class="fd-toc-item" data-depth="3">
     <a href="#fsspec_kafka.KafkaFileSystem.info">KafkaFileSystem.info()</a>
-  </li>
-  <li class="fd-toc-item" data-depth="3">
-    <a href="#fsspec_kafka.KafkaFileSystem.metadata">KafkaFileSystem.metadata()</a>
   </li>
   <li class="fd-toc-item" data-depth="3">
     <a href="#fsspec_kafka.KafkaFileSystem.offsets_for_time">KafkaFileSystem.offsets_for_time()</a>
