@@ -14,7 +14,7 @@ authors = [
 description = "Kafka topics and partitions through fsspec"
 readme = "README.md"
 license = { text = "Apache-2.0" }
-version = "0.3.1"
+version = "0.3.2"
 requires-python = ">=3.11"
 keywords = []
 
@@ -74,7 +74,7 @@ Repository = "https://github.com/1kbgz/fsspec-kafka"
 Homepage = "https://github.com/1kbgz/fsspec-kafka"
 
 [tool.bumpversion]
-current_version = "0.3.1"
+current_version = "0.3.2"
 commit = true
 tag = true
 commit_args = "-s"
